@@ -1,0 +1,8 @@
+{
+    global:
+        Java_*;
+        _ZN10ArmMemHook*;
+        _ZN12ArmMemMemory*;
+    local:
+        *;
+};

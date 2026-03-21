@@ -1,0 +1,94 @@
+plugins {
+    alias(libs.plugins.android.library)
+}
+
+def RELEASE = 0
+def BETA = 1
+def SNAPSHOT = 2
+
+def _versionCode = 1
+def _versionName = "1.0.0"
+def _variant = BETA
+
+android {
+    def localProperties = new Properties()
+    def localPropertiesFile = rootProject.file('local.properties')
+    if (localPropertiesFile.exists()) {
+        localProperties.load(new FileInputStream(localPropertiesFile))
+    }
+
+    if (localProperties.containsKey("BUILD_IN_CI") && localProperties.getProperty("BUILD_IN_CI") == "true") {
+        _variant = SNAPSHOT
+    }
+
+    signingConfigs {
+        debug {
+            storeFile file(localProperties.getProperty('SIGNING_KEY_PATH_OVERRIDE'))
+            storePassword localProperties.getProperty('SIGNING_KEY_PASSWORD')
+            keyPassword localProperties.getProperty('SIGNING_KEY_ALIAS_PASSWORD')
+            keyAlias localProperties.getProperty('SIGNING_KEY_ALIAS')
+        }
+        release {
+            storeFile file(localProperties.getProperty('SIGNING_KEY_PATH_OVERRIDE'))
+            storePassword localProperties.getProperty('SIGNING_KEY_PASSWORD')
+            keyPassword localProperties.getProperty('SIGNING_KEY_ALIAS_PASSWORD')
+            keyAlias localProperties.getProperty('SIGNING_KEY_ALIAS')
+        }
+    }
+
+    namespace 'dev1503.armmem'
+    compileSdk {
+        version = release(36) {
+            minorApiLevel = 1
+        }
+    }
+
+    defaultConfig {
+        minSdk 23
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
+        externalNativeBuild {
+            cmake {
+                cppFlags ""
+                arguments "-DANDROID_STL=c++_shared"
+                abiFilters 'armeabi-v7a', 'arm64-v8a'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    prefab {
+        ArmMem {
+            headers "src/main/cpp/exports"
+        }
+    }
+    buildFeatures {
+        prefabPublishing true
+    }
+}
+
+dependencies {
+    implementation libs.androidx.core.ktx
+    implementation libs.androidx.appcompat
+    implementation libs.material
+    testImplementation libs.junit
+    androidTestImplementation libs.androidx.junit
+    androidTestImplementation libs.androidx.espresso.core
+}
