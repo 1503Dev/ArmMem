@@ -10,7 +10,7 @@
 
 MemoryRange ArmMemMemory::toMemoryRange(int id) {
     switch (id) {
-        case 0: return MemoryRange::ALL;
+//        case 0: return MemoryRange::ALL;
         case 1: return MemoryRange::C_HEAP;
         case 2: return MemoryRange::JAVA_HEAP;
         case 3: return MemoryRange::C_ALLOC;
@@ -99,9 +99,17 @@ std::vector<MemoryRegion> ArmMemMemory::getMemoryRegions(int pid, MemoryRange ra
         bool has_path = (strlen(path) > 0);
 
         switch (range) {
-            case MemoryRange::ALL:
-                match = true;
-                break;
+//            case MemoryRange::ALL:
+//                if (strcmp(path, "[heap]") == 0 || // c heap
+//                    strstr(path, "/dev/ashmem/dalvik") || strstr(path, "art-kae") || // java heap
+//                    strstr(path, "[anon:libc_malloc]") || strstr(path, "[anon:scudo:]") || // c alloc
+//                    (!has_path && is_rw) || // anonymous
+//                    (has_path && is_rw && path[0] == '/' && (strstr(path, ".so") || strstr(path, "/base.apk"))) || // c data/bss
+//                    is_x && strstr(path, "/data/app/") || // code app
+//                    strcmp(path, "[stack]") == 0 || // stack
+//                    (strstr(path, "/dev/ashmem/") && !strstr(path, "dalvik")) || // ashmem
+//                    (has_path && path[0] != '[' && !strstr(path, "/data/app/")) /* other */) match = true;
+//                break;
             case MemoryRange::C_HEAP:
                 if (strcmp(path, "[heap]") == 0) match = true;
                 break;
@@ -160,7 +168,7 @@ std::vector<MemoryRegion> ArmMemMemory::getMemoryRegions(MemoryRange memoryRange
 std::vector<MemoryValue> ArmMemMemory::searchDword(int pid, int value, MemoryRange memoryRange) {
     std::vector<MemoryRegion> regions = getMemoryRegions(pid, memoryRange);
     std::vector<MemoryValue> allResults;
-    if (memoryRange == MemoryRange::ALL) return allResults;
+    if (regions.empty()) return allResults;
 
     char memPath[64];
     snprintf(memPath, sizeof(memPath), "/proc/%d/mem", pid);
@@ -175,9 +183,15 @@ std::vector<MemoryValue> ArmMemMemory::searchDword(int pid, int value, MemoryRan
         uintptr_t currentAddr = region.start;
         uintptr_t endAddr = region.start + region.size;
 
+        if (currentAddr % 4 != 0) {
+            currentAddr += (4 - (currentAddr % 4));
+        }
+
         while (currentAddr + sizeof(int) <= endAddr) {
             size_t remaining = endAddr - currentAddr;
             size_t bytesToRead = (remaining > CHUNK_SIZE) ? CHUNK_SIZE : remaining;
+
+            bytesToRead &= ~(sizeof(int) - 1);
 
             ssize_t ret = pread64(fd, buffer.data(), bytesToRead, (off64_t)currentAddr);
             if (ret <= 0) break;
@@ -199,7 +213,6 @@ std::vector<MemoryValue> ArmMemMemory::searchDword(int pid, int value, MemoryRan
     close(fd);
     return allResults;
 }
-
 std::vector<MemoryValue> ArmMemMemory::searchDword(int pid, int value, const std::vector<MemoryValue>& prevList) {
     std::vector<MemoryValue> nextResults;
     if (prevList.empty()) return nextResults;
@@ -285,7 +298,7 @@ std::vector<MemoryValue> ArmMemMemory::searchFloat(int pid, float value, float r
             int count = (int)(ret / sizeof(float));
             for (int i = 0; i < count; i++) {
                 if (std::abs(buffer[i] - value) <= radius) {
-                    MemoryValue item;
+                    MemoryValue item{};
                     item.address = currentAddr + (i * sizeof(float));
                     item.type = ValueType::FLOAT;
                     item.value.floatValue = buffer[i];
@@ -299,7 +312,6 @@ std::vector<MemoryValue> ArmMemMemory::searchFloat(int pid, float value, float r
     close(fd);
     return allResults;
 }
-
 std::vector<MemoryValue> ArmMemMemory::searchFloat(int pid, float value, float radius, const std::vector<MemoryValue>& prevList) {
     std::vector<MemoryValue> nextResults;
     if (prevList.empty()) return nextResults;
@@ -324,7 +336,6 @@ std::vector<MemoryValue> ArmMemMemory::searchFloat(int pid, float value, float r
     close(fd);
     return nextResults;
 }
-
 std::vector<MemoryValue> ArmMemMemory::searchFloat(int pid, float value, float radius, const std::vector<uintptr_t>& prevList) {
     std::vector<MemoryValue> nextResults;
     if (prevList.empty()) return nextResults;
@@ -351,7 +362,6 @@ std::vector<MemoryValue> ArmMemMemory::searchFloat(int pid, float value, float r
     close(fd);
     return nextResults;
 }
-
 std::vector<MemoryValue> ArmMemMemory::searchFloat(float value, float radius, MemoryRange memoryRange) {
     return searchFloat(getpid(), value, radius, memoryRange);
 }
@@ -387,7 +397,7 @@ std::vector<MemoryValue> ArmMemMemory::searchDouble(int pid, double value, doubl
             int count = (int)(ret / sizeof(double));
             for (int i = 0; i < count; i++) {
                 if (std::abs(buffer[i] - value) <= radius) {
-                    MemoryValue item;
+                    MemoryValue item{};
                     item.address = currentAddr + (i * sizeof(double));
                     item.type = ValueType::DOUBLE;
                     item.value.doubleValue = buffer[i];
@@ -425,7 +435,6 @@ std::vector<MemoryValue> ArmMemMemory::searchDouble(int pid, double value, doubl
     close(fd);
     return nextResults;
 }
-
 std::vector<MemoryValue> ArmMemMemory::searchDouble(int pid, double value, double radius, const std::vector<uintptr_t>& prevList) {
     std::vector<MemoryValue> nextResults;
     if (prevList.empty()) return nextResults;
@@ -452,12 +461,324 @@ std::vector<MemoryValue> ArmMemMemory::searchDouble(int pid, double value, doubl
     close(fd);
     return nextResults;
 }
-
 std::vector<MemoryValue> ArmMemMemory::searchDouble(double value, double radius, MemoryRange memoryRange) {
     return searchDouble(getpid(), value, radius, memoryRange);
 }
 std::vector<MemoryValue> ArmMemMemory::searchDouble(double value, double radius, const std::vector<MemoryValue>& prevList) {
     return searchDouble(getpid(), value, radius, prevList);
+}
+
+std::vector<MemoryValue> ArmMemMemory::searchQword(int pid, long long value, MemoryRange memoryRange) {
+    std::vector<MemoryRegion> regions = getMemoryRegions(pid, memoryRange);
+    std::vector<MemoryValue> allResults;
+    if (regions.empty()) return allResults;
+
+    char memPath[64];
+    snprintf(memPath, sizeof(memPath), "/proc/%d/mem", pid);
+    int fd = open(memPath, O_RDONLY);
+    if (fd == -1) return allResults;
+
+    const size_t CHUNK_SIZE = 1024 * 1024;
+    std::vector<long long> buffer(CHUNK_SIZE / sizeof(long long));
+    allResults.reserve(10000);
+
+    for (const auto& region : regions) {
+        uintptr_t currentAddr = region.start;
+        uintptr_t endAddr = region.start + region.size;
+
+        while (currentAddr + sizeof(long long) <= endAddr) {
+            size_t remaining = endAddr - currentAddr;
+            size_t bytesToRead = (remaining > CHUNK_SIZE) ? CHUNK_SIZE : remaining;
+
+            ssize_t ret = pread64(fd, buffer.data(), bytesToRead, (off64_t)currentAddr);
+            if (ret <= 0) break;
+
+            int count = (int)(ret / sizeof(long long));
+            for (int i = 0; i < count; i++) {
+                if (buffer[i] == value) {
+                    MemoryValue item{};
+                    item.address = currentAddr + (i * sizeof(long long));
+                    item.type = ValueType::QWORD;
+                    item.value.qwordValue = buffer[i];
+                    allResults.push_back(item);
+                }
+            }
+            currentAddr += ret;
+        }
+    }
+
+    close(fd);
+    return allResults;
+}
+std::vector<MemoryValue> ArmMemMemory::searchQword(int pid, long long value, const std::vector<MemoryValue>& prevList) {
+    std::vector<MemoryValue> nextResults;
+    if (prevList.empty()) return nextResults;
+
+    char memPath[64];
+    snprintf(memPath, sizeof(memPath), "/proc/%d/mem", pid);
+    int fd = open(memPath, O_RDONLY);
+    if (fd == -1) return nextResults;
+
+    nextResults.reserve(prevList.size());
+
+    for (const auto& prevItem : prevList) {
+        bool success = false;
+        long long currentValue = readQword(prevItem.address, fd, &success);
+        if (success && currentValue == value) {
+            MemoryValue item = prevItem;
+            item.value.qwordValue = currentValue;
+            nextResults.push_back(item);
+        }
+    }
+
+    close(fd);
+    return nextResults;
+}
+std::vector<MemoryValue> ArmMemMemory::searchQword(int pid, long long value, const std::vector<uintptr_t>& prevList) {
+    std::vector<MemoryValue> nextResults;
+    if (prevList.empty()) return nextResults;
+
+    char memPath[64];
+    snprintf(memPath, sizeof(memPath), "/proc/%d/mem", pid);
+    int fd = open(memPath, O_RDONLY);
+    if (fd == -1) return nextResults;
+
+    nextResults.reserve(prevList.size());
+
+    for (const auto& prevItem : prevList) {
+        bool success = false;
+        long long currentValue = readQword(prevItem, fd, &success);
+        if (success && currentValue == value) {
+            MemoryValue item{};
+            item.address = prevItem;
+            item.type = ValueType::QWORD;
+            item.value.qwordValue = currentValue;
+            nextResults.push_back(item);
+        }
+    }
+
+    close(fd);
+    return nextResults;
+}
+std::vector<MemoryValue> ArmMemMemory::searchQword(long long value, MemoryRange memoryRange) {
+    return searchQword(getpid(), value, memoryRange);
+}
+std::vector<MemoryValue> ArmMemMemory::searchQword(long long value, const std::vector<MemoryValue>& prevList) {
+    return searchQword(getpid(), value, prevList);
+}
+
+std::vector<MemoryValue> ArmMemMemory::searchByte(int pid, signed char value, MemoryRange memoryRange) {
+    std::vector<MemoryRegion> regions = getMemoryRegions(pid, memoryRange);
+    std::vector<MemoryValue> allResults;
+    if (regions.empty()) return allResults;
+
+    char memPath[64];
+    snprintf(memPath, sizeof(memPath), "/proc/%d/mem", pid);
+    int fd = open(memPath, O_RDONLY);
+    if (fd == -1) return allResults;
+
+    const size_t CHUNK_SIZE = 1024 * 1024;
+    std::vector<signed char> buffer(CHUNK_SIZE / sizeof(signed char));
+    allResults.reserve(10000);
+
+    for (const auto& region : regions) {
+        uintptr_t currentAddr = region.start;
+        uintptr_t endAddr = region.start + region.size;
+
+        while (currentAddr + sizeof(signed char) <= endAddr) {
+            size_t remaining = endAddr - currentAddr;
+            size_t bytesToRead = (remaining > CHUNK_SIZE) ? CHUNK_SIZE : remaining;
+
+            ssize_t ret = pread64(fd, buffer.data(), bytesToRead, (off64_t)currentAddr);
+            if (ret <= 0) break;
+
+            int count = (int)(ret / sizeof(signed char));
+            for (int i = 0; i < count; i++) {
+                if (buffer[i] == value) {
+                    MemoryValue item{};
+                    item.address = currentAddr + (i * sizeof(signed char));
+                    item.type = ValueType::BYTE;
+                    item.value.byteValue = buffer[i];
+                    allResults.push_back(item);
+                }
+            }
+            currentAddr += ret;
+        }
+    }
+
+    close(fd);
+    return allResults;
+}
+
+std::vector<MemoryValue> ArmMemMemory::searchByte(int pid, signed char value, const std::vector<MemoryValue>& prevList) {
+    std::vector<MemoryValue> nextResults;
+    if (prevList.empty()) return nextResults;
+
+    char memPath[64];
+    snprintf(memPath, sizeof(memPath), "/proc/%d/mem", pid);
+    int fd = open(memPath, O_RDONLY);
+    if (fd == -1) return nextResults;
+
+    nextResults.reserve(prevList.size());
+
+    for (const auto& prevItem : prevList) {
+        bool success = false;
+        signed char currentValue = 0;
+        ssize_t ret = pread64(fd, &currentValue, sizeof(signed char), (off64_t)prevItem.address);
+        success = (ret == sizeof(signed char));
+        if (success && currentValue == value) {
+            MemoryValue item = prevItem;
+            item.value.byteValue = currentValue;
+            nextResults.push_back(item);
+        }
+    }
+
+    close(fd);
+    return nextResults;
+}
+
+std::vector<MemoryValue> ArmMemMemory::searchByte(int pid, signed char value, const std::vector<uintptr_t>& prevList) {
+    std::vector<MemoryValue> nextResults;
+    if (prevList.empty()) return nextResults;
+
+    char memPath[64];
+    snprintf(memPath, sizeof(memPath), "/proc/%d/mem", pid);
+    int fd = open(memPath, O_RDONLY);
+    if (fd == -1) return nextResults;
+
+    nextResults.reserve(prevList.size());
+
+    for (const auto& prevItem : prevList) {
+        bool success = false;
+        signed char currentValue = 0;
+        ssize_t ret = pread64(fd, &currentValue, sizeof(signed char), (off64_t)prevItem);
+        success = (ret == sizeof(signed char));
+        if (success && currentValue == value) {
+            MemoryValue item{};
+            item.address = prevItem;
+            item.type = ValueType::BYTE;
+            item.value.byteValue = currentValue;
+            nextResults.push_back(item);
+        }
+    }
+
+    close(fd);
+    return nextResults;
+}
+
+std::vector<MemoryValue> ArmMemMemory::searchByte(signed char value, MemoryRange memoryRange) {
+    return searchByte(getpid(), value, memoryRange);
+}
+
+std::vector<MemoryValue> ArmMemMemory::searchByte(signed char value, const std::vector<MemoryValue>& prevList) {
+    return searchByte(getpid(), value, prevList);
+}
+
+std::vector<MemoryValue> ArmMemMemory::searchWord(int pid, short value, MemoryRange memoryRange) {
+    std::vector<MemoryRegion> regions = getMemoryRegions(pid, memoryRange);
+    std::vector<MemoryValue> allResults;
+    if (regions.empty()) return allResults;
+
+    char memPath[64];
+    snprintf(memPath, sizeof(memPath), "/proc/%d/mem", pid);
+    int fd = open(memPath, O_RDONLY);
+    if (fd == -1) return allResults;
+
+    const size_t CHUNK_SIZE = 1024 * 1024;
+    std::vector<short> buffer(CHUNK_SIZE / sizeof(short));
+    allResults.reserve(10000);
+
+    for (const auto& region : regions) {
+        uintptr_t currentAddr = region.start;
+        uintptr_t endAddr = region.start + region.size;
+
+        while (currentAddr + sizeof(short) <= endAddr) {
+            size_t remaining = endAddr - currentAddr;
+            size_t bytesToRead = (remaining > CHUNK_SIZE) ? CHUNK_SIZE : remaining;
+
+            ssize_t ret = pread64(fd, buffer.data(), bytesToRead, (off64_t)currentAddr);
+            if (ret <= 0) break;
+
+            int count = (int)(ret / sizeof(short));
+            for (int i = 0; i < count; i++) {
+                if (buffer[i] == value) {
+                    MemoryValue item{};
+                    item.address = currentAddr + (i * sizeof(short));
+                    item.type = ValueType::WORD;
+                    item.value.wordValue = buffer[i];
+                    allResults.push_back(item);
+                }
+            }
+            currentAddr += ret;
+        }
+    }
+
+    close(fd);
+    return allResults;
+}
+
+std::vector<MemoryValue> ArmMemMemory::searchWord(int pid, short value, const std::vector<MemoryValue>& prevList) {
+    std::vector<MemoryValue> nextResults;
+    if (prevList.empty()) return nextResults;
+
+    char memPath[64];
+    snprintf(memPath, sizeof(memPath), "/proc/%d/mem", pid);
+    int fd = open(memPath, O_RDONLY);
+    if (fd == -1) return nextResults;
+
+    nextResults.reserve(prevList.size());
+
+    for (const auto& prevItem : prevList) {
+        bool success = false;
+        short currentValue = 0;
+        ssize_t ret = pread64(fd, &currentValue, sizeof(short), (off64_t)prevItem.address);
+        success = (ret == sizeof(short));
+        if (success && currentValue == value) {
+            MemoryValue item = prevItem;
+            item.value.wordValue = currentValue;
+            nextResults.push_back(item);
+        }
+    }
+
+    close(fd);
+    return nextResults;
+}
+
+std::vector<MemoryValue> ArmMemMemory::searchWord(int pid, short value, const std::vector<uintptr_t>& prevList) {
+    std::vector<MemoryValue> nextResults;
+    if (prevList.empty()) return nextResults;
+
+    char memPath[64];
+    snprintf(memPath, sizeof(memPath), "/proc/%d/mem", pid);
+    int fd = open(memPath, O_RDONLY);
+    if (fd == -1) return nextResults;
+
+    nextResults.reserve(prevList.size());
+
+    for (const auto& prevItem : prevList) {
+        bool success = false;
+        short currentValue = 0;
+        ssize_t ret = pread64(fd, &currentValue, sizeof(short), (off64_t)prevItem);
+        success = (ret == sizeof(short));
+        if (success && currentValue == value) {
+            MemoryValue item{};
+            item.address = prevItem;
+            item.type = ValueType::WORD;
+            item.value.wordValue = currentValue;
+            nextResults.push_back(item);
+        }
+    }
+
+    close(fd);
+    return nextResults;
+}
+
+std::vector<MemoryValue> ArmMemMemory::searchWord(short value, MemoryRange memoryRange) {
+    return searchWord(getpid(), value, memoryRange);
+}
+
+std::vector<MemoryValue> ArmMemMemory::searchWord(short value, const std::vector<MemoryValue>& prevList) {
+    return searchWord(getpid(), value, prevList);
 }
 
 /*

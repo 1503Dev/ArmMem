@@ -5,19 +5,24 @@ Inline Hook and Memory I/O Library for Android
 ## 特性及 TODO
 - [x] Hook 支持 arm64-v8a (aarch64)
 - [x] Hook 支持 armeabi-v7a (arm)
-- [ ] Hook 支持 x86
-- [ ] Hook 支持 x86_64
+- [ ] ~~Hook 支持 x86~~
+- [ ] ~~Hook 支持 x86_64~~
 - [x] 解除 Hook
+- [ ] ~~GOT/PLT Hook 支持~~
 - [x] Java 层内存读写封装
 - [ ] ~~Java 层 Hook 封装~~
+- [ ] aarch64/arm 内存写入断点与监控
 - [x] Dword 内存操作
 - [x] Float 内存操作
 - [x] Double 内存操作
-- [ ] Byte 内存操作
-- [ ] Word 内存操作
-- [ ] Qword 内存操作
+- [x] Byte 内存操作
+- [x] Word 内存操作
+- [x] Qword 内存操作
 - [x] 内存搜索
 - [x] 内存二次搜索
+- [ ] 可执行段特征码搜索
+- [ ] 联合搜索
+- [ ] 模糊搜索
 - [x] Prefab 支持
 
 ## 构建
@@ -79,7 +84,7 @@ plus(1, 2); // 3
 
 ## 内存搜索与读写
 
-**受限于 SELinux 策略，所有内存操作都需要在 `AndroidManifest.xml` 中设置 `android:debuggable="true"`**  
+**受限于 SELinux 策略，所有内存操作都需要在 `AndroidManifest.xml` 中设置 `android:debuggable="true"` 或在 `build.gradle` 中强制启用 debuggable**  
 **跨进程内存操作需要 root 权限或拥有相同共享用户 ID**  
 
 > android:sharedUserId  

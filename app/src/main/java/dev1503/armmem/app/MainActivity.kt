@@ -46,20 +46,32 @@ class MainActivity : AppCompatActivity() {
         tv2.text = JNI().geti().toString()
     }
     var memoryValueSet: MemoryValueSet? = null
+    var addr: Long = 0
     fun modi(v: View) {
         var rez = Memory.searchDword(1145141919, Memory.RANGE_C_DATA)
         memoryValueSet = rez
         if (rez.isNotEmpty()) {
-            rez.get(0)?.writeDword(15031503)
+            addr = rez.get(0)?.address ?: 0
+            Log.i("ArmMem", "modi: $addr")
+
         }
+        JNI().modi()
+    }
+    fun modi2(v: View) {
+        JNI().modi2(addr)
+        Log.i("ArmMem", "modi2: $addr")
     }
     fun search(v: View) {
 //        if (memoryValueSet == null) {
 //            return
 //        }
-        var rez = Memory.searchDword(1, Memory.RANGE_C_DATA)
-        for (i in rez ?: emptyList()) {
+        val rez1 = Memory.searchDword(21, Memory.RANGE_C_DATA)
+        for (i in rez1 ?: emptyList()) {
             Log.i("ArmMem", "searchDword: ${i.address}, ${i.readDword()}")
+        }
+        val rez = Memory.searchByte(21, Memory.RANGE_C_DATA)
+        for (i in rez ?: emptyList()) {
+            Log.i("ArmMem", "searchByte: ${i.address}, ${i.readByte()}")
         }
     }
 }

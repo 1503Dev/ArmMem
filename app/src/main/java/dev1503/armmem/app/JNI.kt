@@ -6,6 +6,7 @@ class JNI {
     external fun unHook()
     external fun geti(): Int
     external fun modi(): Int
+    external fun modi2(addr: Long): Int
     companion object {
         init {
             System.loadLibrary("app")

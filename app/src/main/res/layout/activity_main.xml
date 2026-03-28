@@ -54,6 +54,11 @@
     <com.google.android.material.button.MaterialButton
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:text="改值2"
+        android:onClick="modi2"/>
+    <com.google.android.material.button.MaterialButton
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:text="搜索"
         android:onClick="search"/>
 

@@ -29,6 +29,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     hook/hook_function_64.cpp
     hook/hook_function_32.cpp
     memory/memory.cpp
+    memory/memory_region.cpp
 
     armmem_jni.cpp
     memory/memory_jni.cpp

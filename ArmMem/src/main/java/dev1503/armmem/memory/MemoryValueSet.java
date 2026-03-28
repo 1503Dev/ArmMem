@@ -20,6 +20,18 @@ public class MemoryValueSet extends HashSet<MemoryValue> {
         return add(new MemoryValue(pid, address).writeDouble(value));
     }
 
+    public boolean addQword(int pid, long address, long value) {
+        return add(new MemoryValue(pid, address).writeQword(value));
+    }
+
+    public boolean addByte(int pid, long address, byte value) {
+        return add(new MemoryValue(pid, address).writeByte(value));
+    }
+
+    public boolean addWord(int pid, long address, short value) {
+        return add(new MemoryValue(pid, address).writeWord(value));
+    }
+
     public boolean contains(MemoryValue memoryValue) {
         return super.contains(memoryValue);
     }
@@ -90,6 +102,54 @@ public class MemoryValueSet extends HashSet<MemoryValue> {
         return getDoubleValues(size());
     }
 
+    public long[] getQwordValues(int count) {
+        int size = Math.min(size(), count);
+        int fd = Memory.openMemFile(getFirstPid());
+        long[] qwordValues = new long[size];
+        Iterator<MemoryValue> iterator = iterator();
+        for (int i = 0; i < size; i++) {
+            qwordValues[i] = iterator.next().readQword(fd);
+        }
+        Memory.closeMemFile(fd);
+        return qwordValues;
+    }
+
+    public long[] getQwordValues() {
+        return getQwordValues(size());
+    }
+
+    public byte[] getByteValues(int count) {
+        int size = Math.min(size(), count);
+        int fd = Memory.openMemFile(getFirstPid());
+        byte[] byteValues = new byte[size];
+        Iterator<MemoryValue> iterator = iterator();
+        for (int i = 0; i < size; i++) {
+            byteValues[i] = (byte) iterator.next().readByte(fd);
+        }
+        Memory.closeMemFile(fd);
+        return byteValues;
+    }
+
+    public byte[] getByteValues() {
+        return getByteValues(size());
+    }
+
+    public short[] getWordValues(int count) {
+        int size = Math.min(size(), count);
+        int fd = Memory.openMemFile(getFirstPid());
+        short[] wordValues = new short[size];
+        Iterator<MemoryValue> iterator = iterator();
+        for (int i = 0; i < size; i++) {
+            wordValues[i] = (short) iterator.next().readWord(fd);
+        }
+        Memory.closeMemFile(fd);
+        return wordValues;
+    }
+
+    public short[] getWordValues() {
+        return getWordValues(size());
+    }
+
     public MemoryValue get(int index) {
         Iterator<MemoryValue> iterator = iterator();
         if (index >= size()) {
@@ -111,5 +171,17 @@ public class MemoryValueSet extends HashSet<MemoryValue> {
 
     public MemoryValueSet searchDouble(double value, double radius) {
         return Memory.searchDouble(getFirstPid(), value, radius, getAddresses());
+    }
+
+    public MemoryValueSet searchQword(long value) {
+        return Memory.searchQword(getFirstPid(), value, getAddresses());
+    }
+
+    public MemoryValueSet searchByte(byte value) {
+        return Memory.searchByte(getFirstPid(), value, getAddresses());
+    }
+
+    public MemoryValueSet searchWord(short value) {
+        return Memory.searchWord(getFirstPid(), value, getAddresses());
     }
 }

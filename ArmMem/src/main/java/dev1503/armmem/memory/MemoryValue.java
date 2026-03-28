@@ -23,6 +23,10 @@ public class MemoryValue {
         return this;
     }
 
+    /* --------------------------------
+     * Memory Write
+     * -------------------------------- */
+
     public MemoryValue writeDword(int value) {
         JNI.writeDword(pid, address, value);
         return this;
@@ -35,6 +39,22 @@ public class MemoryValue {
         JNI.writeDouble(pid, address, value);
         return this;
     }
+    public MemoryValue writeQword(long value) {
+        JNI.writeQword(pid, address, value);
+        return this;
+    }
+    public MemoryValue writeByte(byte value) {
+        JNI.writeByte(pid, address, value);
+        return this;
+    }
+    public MemoryValue writeWord(short value) {
+        JNI.writeWord(pid, address, value);
+        return this;
+    }
+
+    /* --------------------------------
+     * Memory Read (via PID)
+     * -------------------------------- */
 
     public int readDword() {
         return JNI.readDword(pid, address);
@@ -45,6 +65,20 @@ public class MemoryValue {
     public double readDouble() {
         return JNI.readDouble(pid, address);
     }
+    public long readQword() {
+        return JNI.readQword(pid, address);
+    }
+    public byte readByte() {
+        return JNI.readByte(pid, address);
+    }
+    public short readWord() {
+        return JNI.readWord(pid, address);
+    }
+
+    /* --------------------------------
+     * Memory Read (via FD - Optimized)
+     * -------------------------------- */
+
     public int readDword(int fd) {
         return JNI.readDword(address, fd);
     }
@@ -53,5 +87,14 @@ public class MemoryValue {
     }
     public double readDouble(int fd) {
         return JNI.readDouble(address, fd);
+    }
+    public long readQword(int fd) {
+        return JNI.readQword(address, fd);
+    }
+    public byte readByte(int fd) {
+        return JNI.readByte(address, fd);
+    }
+    public short readWord(int fd) {
+        return JNI.readWord(address, fd);
     }
 }

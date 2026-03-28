@@ -8,9 +8,12 @@
 #include <cstdint>
 
 struct MemoryRegion {
+//public:
     uintptr_t start;
     size_t size;
     char path[256];
+
+//    MemoryRegion* subtract(MemoryRegion& other) const;
 };
 
 #endif //ARMMEM_MEMORY_REGION_H

@@ -3,7 +3,7 @@ package dev1503.armmem.memory;
 import static dev1503.armmem.memory.JNI.getPid;
 
 public class Memory {
-    public static final int RANGE_ALL = 0;
+//    public static final int RANGE_ALL = 0;
     public static final int RANGE_C_HEAP = 1;
     public static final int RANGE_JAVA_HEAP = 2;
     public static final int RANGE_C_ALLOC = 3;
@@ -91,6 +91,84 @@ public class Memory {
     public static MemoryValueSet searchDouble(double value, double radius, long[] prevList) {
         return searchDouble(getPid(), value, radius, prevList);
     }
+    public static MemoryValueSet searchQword(int pid, long value, int memoryRange) {
+        MemoryValueSet memoryValueSet = new MemoryValueSet();
+        long[] addresses = JNI.searchQword(pid, value, memoryRange);
+        for (long address : addresses) {
+            memoryValueSet.addQword(pid, address, value);
+        }
+        return memoryValueSet;
+    }
+
+    public static MemoryValueSet searchQword(long value, int memoryRange) {
+        return searchQword(getPid(), value, memoryRange);
+    }
+
+    public static MemoryValueSet searchQword(int pid, long value, long[] prevList) {
+        MemoryValueSet memoryValueSet = new MemoryValueSet();
+        long[] addresses = JNI.searchQword(pid, value, prevList);
+        for (long address : addresses) {
+            memoryValueSet.addQword(pid, address, value);
+        }
+        return memoryValueSet;
+    }
+
+    public static MemoryValueSet searchQword(long value, long[] prevList) {
+        return searchQword(getPid(), value, prevList);
+    }
+
+    public static MemoryValueSet searchByte(int pid, byte value, int memoryRange) {
+        MemoryValueSet memoryValueSet = new MemoryValueSet();
+        long[] addresses = JNI.searchByte(pid, value, memoryRange);
+        for (long address : addresses) {
+            memoryValueSet.addByte(pid, address, value);
+        }
+        return memoryValueSet;
+    }
+
+    public static MemoryValueSet searchByte(byte value, int memoryRange) {
+        return searchByte(getPid(), value, memoryRange);
+    }
+
+    public static MemoryValueSet searchByte(int pid, byte value, long[] prevList) {
+        MemoryValueSet memoryValueSet = new MemoryValueSet();
+        long[] addresses = JNI.searchByte(pid, value, prevList);
+        for (long address : addresses) {
+            memoryValueSet.addByte(pid, address, value);
+        }
+        return memoryValueSet;
+    }
+
+    public static MemoryValueSet searchByte(byte value, long[] prevList) {
+        return searchByte(getPid(), value, prevList);
+    }
+
+    public static MemoryValueSet searchWord(int pid, short value, int memoryRange) {
+        MemoryValueSet memoryValueSet = new MemoryValueSet();
+        long[] addresses = JNI.searchWord(pid, value, memoryRange);
+        for (long address : addresses) {
+            memoryValueSet.addWord(pid, address, value);
+        }
+        return memoryValueSet;
+    }
+
+    public static MemoryValueSet searchWord(short value, int memoryRange) {
+        return searchWord(getPid(), value, memoryRange);
+    }
+
+    public static MemoryValueSet searchWord(int pid, short value, long[] prevList) {
+        MemoryValueSet memoryValueSet = new MemoryValueSet();
+        long[] addresses = JNI.searchWord(pid, value, prevList);
+        for (long address : addresses) {
+            memoryValueSet.addWord(pid, address, value);
+        }
+        return memoryValueSet;
+    }
+
+    public static MemoryValueSet searchWord(short value, long[] prevList) {
+        return searchWord(getPid(), value, prevList);
+    }
+
 
     public static void writeDword(int pid, long address, int value) {
         JNI.writeDword(pid, address, value);

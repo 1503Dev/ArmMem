@@ -19,6 +19,8 @@ struct MemoryValue {
         float floatValue; // 4
         long long qwordValue; // 8
         double doubleValue; // 8
+        signed char byteValue; // 1
+        short wordValue; // 2
     } value;
 };
 
