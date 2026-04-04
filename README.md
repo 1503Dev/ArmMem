@@ -3,7 +3,7 @@
 Inline Hook and Memory I/O Library for Android
 
 ## 特性及 TODO
-- [x] Hook 支持 arm64-v8a (aarch64)
+- [x] [Hook](#hook-函数) 支持 arm64-v8a (aarch64)
 - [x] Hook 支持 armeabi-v7a (arm)
 - [ ] ~~Hook 支持 x86~~
 - [ ] ~~Hook 支持 x86_64~~
@@ -11,14 +11,12 @@ Inline Hook and Memory I/O Library for Android
 - [ ] ~~GOT/PLT Hook 支持~~
 - [x] Java 层内存读写封装
 - [ ] ~~Java 层 Hook 封装~~
-- [ ] aarch64/arm 内存写入断点与监控
-- [x] Dword 内存操作
-- [x] Float 内存操作
-- [x] Double 内存操作
-- [x] Byte 内存操作
-- [x] Word 内存操作
-- [x] Qword 内存操作
-- [x] 内存搜索
+- [x] [aarch64 内存读写监控](#内存监控)
+- [x] [arm 内存读写监控](#内存监控)
+- [ ] Java 层内存监控封装
+- [ ] 内存读取监控修改读取值
+- [x] [内存读写](#内存搜索与读写)
+- [x] [内存搜索](#内存搜索与读写)
 - [x] 内存二次搜索
 - [ ] 可执行段特征码搜索
 - [ ] 联合搜索
@@ -29,6 +27,9 @@ Inline Hook and Memory I/O Library for Android
 使用 Android Studio 构建 ArmMem 模块或使用 gradlew 命令行构建
 
 ## 使用
+### 获取 aar
+自己编译或者从 [Release](https://github.com/1503Dev/ArmMem/releases) 中下载 aar 文件
+
 ### 导入库
 在应用模块的 build.gradle 中启用 Prefab 支持，并引入 aar
 ```groovy build.gradle
@@ -233,6 +234,26 @@ MemoryRange::ASHMEM
 MemoryRange::OTHER 
 ```
 
+## 内存监控
+```cpp
+uintptr_t address = 0x7F123458;
+void* callback(MemoryMonitorHandle* handle, MemoryMonitorHit* hit) {
+    // handle里面有监控的基本信息，hit里面有触发监控的即时信息，如访问者函数地址，汇编所在地址，函数符号，原始内容等
+    return reinterpret_cast<void*>(114514);
+}
+int userData = 123456;
+MemoryMonitorHandle* handleRead = ArmMemMemory::listenForReadOnce(address, (void*)callback, (void*)(uintptr_t)userData);
+// 监控一次读取操作(不建议使用listenForRead对频繁读取的内存进行持久化监控，否则会消耗大量性能，且内存、线程都不安全)
+MemoryMonitorHandle* handleWrite = ArmMemMemory::listenForWriteOnce(address, (void*)callback, (void*)(uintptr_t)userData);
+// 监控一次写入操作(不建议使用listenForWrite对频繁写入操作的内存进行持久化监控，否则会消耗大量性能，且内存、线程都不安全)
+// 写入操作可以返回一个值来修改写入的值，也可以返回nullptr来保持修改前的值
+
+ArmMemMemory::unlisten(handleRead); // 取消监控读取操作
+ArmMemMemory::unlisten(handleWrite); // 取消监控写入操作
+
+// 注意: 每个地址只能监控一次，不能重复监控同一个地址
+```
+
 详细API: [memory.h](https://github.com/1503Dev/ArmMem/blob/main/ArmMem/src/main/cpp/exports/armmem/memory.h)
 
 ## 许可证
@@ -243,7 +264,7 @@ MemoryRange::OTHER
   你可以自由地动态链接 ArmMem 库。在这种情况下，你的程序无需开源，只需在适当位置（如文档或关于页面）声明使用了 ArmMem，并标注其代码仓库的 URL。
 
 - 静态链接  
-  如果你静态链接了本库，在分发程序时，你必须提供程序的 **目标文件（Object Files）** 或 **源代码**，以允许用户能够通过重新链接来更换不同版本的 ArmMem 库。
+  如果你静态链接了本库，在分发程序时，你必须提供（包括但不限于附加仓库链接、打包源代码到最终分发版本中等）程序的 **目标文件（Object Files）** 或 **源代码**，以允许用户能够通过重新链接来更换不同版本的 ArmMem 库。
 
 - 修改库文件  
   **如果你修改了 ArmMem 的源代码，在分发时必须以 LGPL-2.1 协议公开库本身及其修改部分的所有源码。**

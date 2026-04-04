@@ -54,12 +54,38 @@
     <com.google.android.material.button.MaterialButton
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="改值2"
-        android:onClick="modi2"/>
+        android:text="搜索"
+        android:onClick="search"/>
     <com.google.android.material.button.MaterialButton
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="搜索"
-        android:onClick="search"/>
+        android:text="地址保存"
+        android:onClick="saveAddr"/>
+    <com.google.android.material.button.MaterialButton
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="写入"
+        android:onClick="wr"/>
+    <com.google.android.material.button.MaterialButton
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="监控写入"
+        android:onClick="lisWr"/>
+    <com.google.android.material.button.MaterialButton
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="解除监控写入"
+        android:onClick="unlisWr"/>
+    <com.google.android.material.button.MaterialButton
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="监控读取"
+        android:onClick="lisRd"/>
+    <com.google.android.material.button.MaterialButton
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="解除监控读取"
+        android:onClick="unlisRd"/>
+
 
 </LinearLayout>

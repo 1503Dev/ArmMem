@@ -7,6 +7,13 @@
 #include "../exports/armmem/memory.h"
 #include "../exports/armmem/memory_value.h"
 #include "../exports/armmem/memory_region.h"
+#include "../exports/armmem.h"
+#include "../exports/armmem/memory_monitor_hit.h"
+#include <thread>
+#include <chrono>
+#include <iostream>
+#include <random>
+#include <dlfcn.h>
 
 MemoryRange ArmMemMemory::toMemoryRange(int id) {
     switch (id) {
@@ -931,4 +938,235 @@ int ArmMemMemory::openMemFile(int pid) {
     char memPath[64];
     snprintf(memPath, sizeof(memPath), "/proc/%d/mem", pid);
     return open(memPath, O_RDONLY);
+}
+
+/*
+ * --------------------------------
+ * Memory Monitor
+ * --------------------------------
+ */
+
+std::mutex ArmMemMemory::m_monitorMutex;
+std::unordered_map<int, std::shared_ptr<MemoryMonitorHandle*>> ArmMemMemory::m_monitorHandles;
+
+MemoryMonitorHandle* ArmMemMemory::listenForWrite(int pid, uintptr_t address, void *callback, void *userData) {
+    return listen(pid, address, 0, callback, userData);
+}
+
+MemoryMonitorHandle* ArmMemMemory::listen(int pid, uintptr_t address, int type, void *callback, void *userData) {
+    if (!address) {
+        ArmMem::logE(TAG, __func__, "Invalid address");
+        return nullptr;
+    }
+
+    for (auto& it : m_monitorHandles) {
+        if ((*it.second)->address == address) {
+            ArmMem::logE(TAG, __func__, "Address already listened");
+            return nullptr;
+        }
+    }
+
+    std::lock_guard<std::mutex> lock(m_monitorMutex);
+
+    unsigned seed = std::chrono::steady_clock::now().time_since_epoch().count();
+    std::mt19937 gen(seed);
+    std::uniform_int_distribution<int> dist_val(100000000, 999999999);
+    std::uniform_int_distribution<int> dist_sign(0, 1);
+    int hash = dist_val(gen);
+    if (dist_sign(gen) == 0) {
+        hash = -hash;
+    }
+
+    auto* handle = new MemoryMonitorHandle();
+    handle->pid = pid;
+    handle->address = address;
+    handle->size = 4;
+    handle->isOnce = false;
+    handle->userData = userData;
+    handle->callback = reinterpret_cast<void* (*)(MemoryMonitorHandle*, MemoryMonitorHit*)>(callback);
+    handle->type = type;
+    handle->hash = hash;
+    m_monitorHandles[handle->hash] = std::make_shared<MemoryMonitorHandle*>(handle);
+
+    _listenForWrite(handle);
+    ArmMem::logV(TAG, __func__, "Listened %i[%p] for %s", handle->hash, handle->address, type == 0 ? "WRITE" : "READ");
+    return handle;
+}
+
+MemoryMonitorHandle* ArmMemMemory::_listenForWrite(MemoryMonitorHandle* handle) {
+    struct sigaction sa{};
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_SIGINFO | SA_RESTART | SA_NODEFER;
+    sa.sa_sigaction = syncMonitorSignalHandler;
+    sigaction(SIGSEGV, &sa, nullptr);
+
+    long pageSize = sysconf(_SC_PAGESIZE);
+    uintptr_t pageStart = handle->address & ~(pageSize - 1);
+    mprotect(reinterpret_cast<void *>(pageStart), pageSize, PROT_READ);
+
+    return handle;
+}
+
+bool ArmMemMemory::unlisten(MemoryMonitorHandle* handle) {
+    if (!handle) {
+        ArmMem::logE(TAG, __func__, "Invalid handle");
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_monitorMutex);
+
+    auto it = m_monitorHandles.find(handle->hash);
+    if (it != m_monitorHandles.end()) {
+        uintptr_t targetAddr = handle->address;
+        m_monitorHandles.erase(it);
+        _updatePageProtection(targetAddr);
+        ArmMem::logV(TAG, __func__, "Unlistened %i[%p]", handle->hash, targetAddr);
+        return true;
+    }
+    ArmMem::logE(TAG, __func__, "Invalid handle");
+    return false;
+}
+
+MemoryMonitorHandle* ArmMemMemory::listenForWriteOnce(int pid, uintptr_t address, void *callback, void *userData) {
+    MemoryMonitorHandle* handle = listenForWrite(pid, address, callback, userData);
+    if (handle) {
+        handle->isOnce = true;
+    }
+    return handle;
+}
+
+void ArmMemMemory::syncMonitorSignalHandler(int sig, siginfo_t* si, void* context) {
+    if (sig != SIGSEGV) return;
+
+    auto faultAddr = reinterpret_cast<uintptr_t>(si->si_addr);
+    long pageSize = sysconf(_SC_PAGESIZE);
+    uintptr_t pageStart = faultAddr & ~(pageSize - 1);
+
+    auto* ucontext = reinterpret_cast<ucontext_t*>(context);
+#ifdef __aarch64__
+    uintptr_t pc = ucontext->uc_mcontext.pc;
+#elif __arm__
+    uintptr_t pc = ucontext->uc_mcontext.arm_pc;
+#endif
+
+    mprotect(reinterpret_cast<void*>(pageStart), pageSize, PROT_READ | PROT_WRITE);
+
+    bool modified = false;
+    if (m_monitorMutex.try_lock()) {
+        std::vector<MemoryMonitorHandle*> toRemove;
+
+        for (auto& pair : m_monitorHandles) {
+            MemoryMonitorHandle* target = *pair.second;
+
+            if (faultAddr >= target->address && faultAddr < (target->address + target->size)) {
+                uint32_t originalVal = *reinterpret_cast<uint32_t*>(target->address);
+
+                const char* moduleName = nullptr;
+                const char* symbolName = nullptr;
+                uintptr_t accessorFunction = 0;
+                uintptr_t accessorModuleBase = 0;
+                Dl_info info;
+                auto* hit = new MemoryMonitorHit();
+                if (dladdr(reinterpret_cast<void*>(pc), &info)) {
+                    moduleName = info.dli_fname;
+                    symbolName = info.dli_sname;
+                    accessorFunction = reinterpret_cast<uintptr_t>(info.dli_saddr);
+                    accessorModuleBase = reinterpret_cast<uintptr_t>(info.dli_fbase);
+                }
+
+                hit->originalValue = originalVal;
+                hit->accessorAddress = pc;
+                hit->accessorSymbol = symbolName;
+                hit->accessorModuleName = moduleName;
+                hit->accessorFunction = accessorFunction;
+                hit->accessorModuleBase = accessorModuleBase;
+
+                if (target->callback) {
+                    void *result = target->callback(target, hit);
+                    if (target->type == 0 && result != nullptr) {
+                        *reinterpret_cast<uint32_t *>(target->address) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(result));
+                        ArmMem::logV(TAG, __func__, "Monitor hit %s %i[%p], replaced to %i", (target->type == 0 ? "WRITE" : "READ"), target->hash, target->address, result);
+                    } else {
+                        ArmMem::logV(TAG, __func__, "Monitor hit %s %i[%p]", (target->type == 0 ? "WRITE" : "READ"), target->hash, target->address);
+                    }
+                    modified = true;
+                }
+
+                if (target->isOnce) {
+                    toRemove.push_back(target);
+                } else {
+                    std::thread([target]() {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                        std::lock_guard<std::mutex> lock(m_monitorMutex);
+                        _updatePageProtection(target->address);
+                    }).detach();
+                }
+                break;
+            }
+        }
+
+        for (auto* target : toRemove) m_monitorHandles.erase(target->hash);
+        m_monitorMutex.unlock();
+    }
+    if (modified) {
+#ifdef __aarch64__
+        ucontext->uc_mcontext.pc += 4;
+#elif __arm__
+        ucontext->uc_mcontext.arm_pc += (ucontext->uc_mcontext.arm_cpsr & 0x20) ? 2 : 4;
+#endif
+    }
+}
+
+void ArmMemMemory::_updatePageProtection(uintptr_t address) {
+    long pageSize = sysconf(_SC_PAGESIZE);
+    uintptr_t pageStart = address & ~(pageSize - 1);
+
+    bool hasReadMonitor = false;
+    bool hasWriteMonitor = false;
+
+    for (auto& pair : m_monitorHandles) {
+        MemoryMonitorHandle* h = *pair.second;
+        if ((h->address & ~(pageSize - 1)) == pageStart) {
+            if (h->type == 1) hasReadMonitor = true;
+            if (h->type == 0) hasWriteMonitor = true;
+        }
+    }
+
+    int prot = PROT_READ | PROT_WRITE;
+    if (hasReadMonitor) {
+        prot = PROT_NONE;
+    } else if (hasWriteMonitor) {
+        prot = PROT_READ;
+    }
+
+    mprotect(reinterpret_cast<void *>(pageStart), pageSize, prot);
+}
+
+MemoryMonitorHandle* ArmMemMemory::listenForRead(int pid, uintptr_t address, void *callback, void *userData) {
+    MemoryMonitorHandle* handle = listen(pid, address, 1, callback, userData);
+    if (handle) {
+        std::lock_guard<std::mutex> lock(m_monitorMutex);
+        _updatePageProtection(handle->address);
+    }
+    return handle;
+}
+
+MemoryMonitorHandle* ArmMemMemory::listenForReadOnce(int pid, uintptr_t address, void *callback, void *userData) {
+    MemoryMonitorHandle* handle = listenForRead(pid, address, callback, userData);
+    if (handle) {
+        handle->isOnce = true;
+    }
+    return handle;
+}
+
+MemoryMonitorHandle* ArmMemMemory::listenForWrite(uintptr_t address, void *callback, void *userData) {
+    return listenForWrite(getpid(), address, callback, userData);
+}
+MemoryMonitorHandle* ArmMemMemory::listenForWriteOnce(uintptr_t address, void *callback, void *userData) {
+    return listenForWriteOnce(getpid(), address, callback, userData);
+}
+MemoryMonitorHandle* ArmMemMemory::listenForRead(uintptr_t address, void *callback, void *userData) {
+    return listenForRead(getpid(), address, callback, userData);
+}
+MemoryMonitorHandle* ArmMemMemory::listenForReadOnce(uintptr_t address, void *callback, void *userData) {
+    return listenForReadOnce(getpid(), address, callback, userData);
 }

@@ -1,6 +1,7 @@
 {
     global:
         Java_*;
+        _ZN6ArmMem*;
         _ZN10ArmMemHook*;
         _ZN12ArmMemMemory*;
     local:

@@ -74,4 +74,33 @@ class MainActivity : AppCompatActivity() {
             Log.i("ArmMem", "searchByte: ${i.address}, ${i.readByte()}")
         }
     }
+
+    fun saveAddr(v: View) {
+        var rez = Memory.searchDword(1145141919, Memory.RANGE_C_DATA)
+        memoryValueSet = rez
+        if (rez.isNotEmpty()) {
+            addr = rez.get(0)?.address ?: 0
+            Log.i("ArmMem", "saveAddr: $addr")
+        }
+    }
+    fun wr(v: View) {
+        JNI().modi()
+        Log.i("ArmMem", "已写入")
+    }
+    fun lisWr(v: View) {
+        JNI().modi2(addr)
+        Log.i("ArmMem", "已监控写入")
+    }
+    fun unlisWr(v: View) {
+        JNI().unlisWr()
+    }
+    fun handleTest(v: View) {
+        JNI().handleTest()
+    }
+    fun lisRd(v: View) {
+        JNI().lisRd(addr)
+    }
+    fun unlisRd(v: View) {
+        JNI().unlisRd()
+    }
 }

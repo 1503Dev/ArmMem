@@ -1,8 +1,10 @@
 #include <jni.h>
 #include <android/log.h>
 #include <dlfcn.h>
+#include <armmem/memory_monitor_hit.h>
 #include "armmem/hook.h"
 #include "armmem/memory.h"
+#include "armmem.h"
 
 static jstring (*original_stringFromJNI)(JNIEnv *, jobject) = nullptr;
 
@@ -51,11 +53,25 @@ Java_dev1503_armmem_app_JNI_unHook(JNIEnv *env, jobject thiz) {
     __android_log_print(ANDROID_LOG_INFO, "UNHOOK", "%i", ArmMemHook::unhook(h));
 }
 
+void logV(const char* msg) {
+    __android_log_print(ANDROID_LOG_INFO, "ArmMem", "%s", msg);
+}
+
+void logE(const char* msg) {
+    __android_log_print(ANDROID_LOG_ERROR, "ArmMem", "%s", msg);
+}
+
 extern "C"
 JNIEXPORT jint JNICALL
 Java_dev1503_armmem_app_JNI_geti(JNIEnv *env, jobject thiz) {
+    ArmMem::setLoggerE(&logE);
+    ArmMem::setLoggerV(&logV);
     return iv;
 }
+void setI(int i) {
+    iv = i;
+}
+
 extern "C"
 JNIEXPORT jint JNICALL
 Java_dev1503_armmem_app_JNI_modi(JNIEnv *env, jobject thiz) {
@@ -72,40 +88,57 @@ Java_dev1503_armmem_app_JNI_modi(JNIEnv *env, jobject thiz) {
 //        __android_log_print(ANDROID_LOG_INFO, "MODF", "result: %p: %f", (void*)results[0].address, results[0].value.floatValue);
 //    }
 
-    iv = 1145141818;
+    setI(1145141818);
 
     return 0;
 }
-#include <jni.h>
-#include <sys/mman.h>
-#include <signal.h>
-#include <ucontext.h>
-#include <dlfcn.h>
-#include <unistd.h>
-#include <android/log.h>
-
 #define LOG_TAG "ArmMem_Monitor"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
-static uintptr_t g_monitored_addr = 0;
-
-void sync_handler(int sig, siginfo_t *si, void *context) {
-    ucontext_t *uc = (ucontext_t *)context;
-
-#ifdef __aarch64__
-    uintptr_t pc = uc->uc_mcontext.pc;
-#else
-    uintptr_t pc = uc->uc_mcontext.arm_pc;
-#endif
-    uintptr_t fault_addr = (uintptr_t)si->si_addr;
-
-
+void* cb(MemoryMonitorHandle* handle, MemoryMonitorHit* hit) {
+    LOGI("HANDLE\naddr %u\ntype %i\nhash %i\nisOnce %i\npid %i\nsize %u\nuserData %u", handle->address, handle->type, handle->hash, handle->isOnce, handle->pid, handle->size, handle->userData);
+    LOGI("HIT\nnoriginalValue %u\naccessorAddress %u\naccessorFunction %u\naccessorModuleBase %u\naccessorSymbol %s\naccessorModuleName %s", hit->originalValue, hit->accessorAddress, hit->accessorFunction, hit->accessorModuleBase, hit->accessorSymbol, hit->accessorModuleName);
+//    *prevented = true;
+//    return reinterpret_cast<void *>(123456);
+    return reinterpret_cast<void*>(11451503);
 }
+
+static MemoryMonitorHandle* handleWr = nullptr;
+static MemoryMonitorHandle* handleRd = nullptr;
 
 extern "C"
 JNIEXPORT jint JNICALL
 Java_dev1503_armmem_app_JNI_modi2(JNIEnv *env, jobject thiz, jlong addr) {
-
-
+    auto addrPtr = static_cast<uintptr_t>(addr);
+    handleWr = ArmMemMemory::listenForWrite(addrPtr, (void*)cb, (void*)(uintptr_t)123456);
     return 1;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_dev1503_armmem_app_JNI_unlisWr(JNIEnv *env, jobject thiz) {
+    if (handleWr) {
+        ArmMemMemory::unlisten(handleWr);
+    }
+    return 1;
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_dev1503_armmem_app_JNI_handleTest(JNIEnv *env, jobject thiz) {
+    LOGI("handleTest: %p, hash %i, addr %u", handleWr, handleWr->hash, handleWr->address);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_dev1503_armmem_app_JNI_lisRd(JNIEnv *env, jobject thiz, jlong addr) {
+    auto addrPtr = static_cast<uintptr_t>(addr);
+    handleRd = ArmMemMemory::listenForRead(addrPtr, (void*)cb, (void*)(uintptr_t)789113);
+}
+extern "C"
+JNIEXPORT void JNICALL
+Java_dev1503_armmem_app_JNI_unlisRd(JNIEnv *env, jobject thiz) {
+    if (handleRd) {
+        ArmMemMemory::unlisten(handleRd);
+    }
 }

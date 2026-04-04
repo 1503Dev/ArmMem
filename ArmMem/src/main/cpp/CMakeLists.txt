@@ -25,6 +25,7 @@ project("ArmMem")
 # for GameActivity/NativeActivity derived applications, the same library name must be
 # used in the AndroidManifest.xml file.
 add_library(${CMAKE_PROJECT_NAME} SHARED
+    ArmMem.cpp
     hook/hook.cpp
     hook/hook_function_64.cpp
     hook/hook_function_32.cpp

@@ -40,3 +40,5 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     android
     log
     ArmMem::ArmMem)
+
+target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/exported_symbols.map")
