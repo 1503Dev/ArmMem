@@ -42,9 +42,18 @@ static bool makeMemoryRwx(void* addr, size_t size) {
     return mprotect(reinterpret_cast<void*>(start), end - start, PROT_READ | PROT_WRITE | PROT_EXEC) == 0;
 }
 
+static bool makeMemoryRx(void* addr, size_t size) {
+    initPageSize();
+    uintptr_t start = reinterpret_cast<uintptr_t>(addr) & ~(gPageSize - 1);
+    uintptr_t end = (reinterpret_cast<uintptr_t>(addr) + size + gPageSize - 1) & ~(gPageSize - 1);
+    return mprotect(reinterpret_cast<void*>(start), end - start, PROT_READ | PROT_EXEC) == 0;
+}
+
 void ArmMemHookFunction32::init() {
     initPageSize();
-    makeMemoryRwx(gInsnsPoolA32, sizeof(gInsnsPoolA32));
+    uintptr_t start = reinterpret_cast<uintptr_t>(gInsnsPoolA32) & ~(gPageSize - 1);
+    uintptr_t end = (reinterpret_cast<uintptr_t>(gInsnsPoolA32) + sizeof(gInsnsPoolA32) + gPageSize - 1) & ~(gPageSize - 1);
+    mprotect(reinterpret_cast<void*>(start), end - start, PROT_READ | PROT_WRITE);
 }
 
 uint32_t* ArmMemHookFunction32::allocateTrampoline() {
@@ -108,6 +117,7 @@ void* ArmMemHookFunction32::hookV(void* const symbol, void* const replace, void*
 
     if (rwx) {
         fixInstructions(realTarget, totalBytes, static_cast<uint32_t*>(rwx), isThumb);
+        makeMemoryRx(rwx, ARMMEM_HF32_TRAMPOLINE_SIZE * 4);
     }
 
     if (!makeMemoryRwx(reinterpret_cast<void*>(realTarget), totalBytes)) {
@@ -127,6 +137,7 @@ void* ArmMemHookFunction32::hookV(void* const symbol, void* const replace, void*
     }
 
     __builtin___clear_cache(reinterpret_cast<char*>(realTarget), reinterpret_cast<char*>(realTarget) + totalBytes);
+    makeMemoryRx(reinterpret_cast<void*>(realTarget), totalBytes);
 
     if (rwx) {
         auto resultPtr = reinterpret_cast<uintptr_t>(rwx);
@@ -202,6 +213,7 @@ bool ArmMemHookFunction32::unhook(HookFunctionHandle* handle) {
     if (makeMemoryRwx(reinterpret_cast<void*>(realTarget), patchSize)) {
         memcpy(reinterpret_cast<void*>(realTarget), handle->backupInsns, patchSize);
         _flush_cache(realTarget, patchSize);
+        makeMemoryRx(reinterpret_cast<void*>(realTarget), patchSize);
         handle->isActive = false;
         return true;
     }

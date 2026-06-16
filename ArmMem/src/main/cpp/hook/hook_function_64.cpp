@@ -82,9 +82,9 @@ struct context {
 #define _predict_true(exp)        __builtin_expect((exp) != 0, 1)
 #define _flush_cache(c, n)        __builtin___clear_cache(reinterpret_cast<char *>(c), reinterpret_cast<char *>(c) + n)
 #define _make_rwx(p, n)           ::mprotect(_ptr_align(p), \
-                                              _page_align(_uintval(p) + n) != _page_align(_uintval(p)) ? _page_align(n) + _page_size : _page_align(n), \
+                                              _page_align(_uintval(p) + n) - _uintval(_ptr_align(p)), \
                                               PROT_READ | PROT_WRITE | PROT_EXEC)
-\
+
 
 static bool fix_branch_imm(instruction inpp, instruction outpp, context *ctxp) {
     static constexpr uint32_t mbits = 6u;
@@ -347,6 +347,7 @@ void* ArmMemHookFunction64::hookV(void *const symbol, void *const replace, void 
         if (trampoline) {
             if (rwx_size < count * 10u) return nullptr;
             fixInstructions(original, count, trampoline);
+            ::mprotect(_ptr_align(trampoline), _page_align(_uintval(trampoline) + (count * 10u * sizeof(uint32_t))) - _uintval(_ptr_align(trampoline)), PROT_READ | PROT_EXEC);
         }
 
         if (_make_rwx(original, 5 * sizeof(uint32_t)) == 0) {
@@ -356,6 +357,7 @@ void* ArmMemHookFunction64::hookV(void *const symbol, void *const replace, void 
             p[1] = 0xd61f0220u; // BR X17
             *reinterpret_cast<void **>(p + 2) = replace;
             _flush_cache(symbol, 5 * sizeof(uint32_t));
+            ::mprotect(_ptr_align(original), _page_align(_uintval(original) + (5 * sizeof(uint32_t))) - _uintval(_ptr_align(original)), PROT_READ | PROT_EXEC);
         } else {
             trampoline = nullptr;
         }
@@ -363,11 +365,13 @@ void* ArmMemHookFunction64::hookV(void *const symbol, void *const replace, void 
         if (trampoline) {
             if (rwx_size < 10u) return nullptr;
             fixInstructions(original, 1, trampoline);
+            ::mprotect(_ptr_align(trampoline), _page_align(_uintval(trampoline) + (10u * sizeof(uint32_t))) - _uintval(_ptr_align(trampoline)), PROT_READ | PROT_EXEC);
         }
 
         if (_make_rwx(original, 1 * sizeof(uint32_t)) == 0) {
             _sync_cmpswap(original, *original, 0x14000000u | (pc_offset & mask));
             _flush_cache(symbol, 1 * sizeof(uint32_t));
+            ::mprotect(_ptr_align(original), _page_align(_uintval(original) + (1 * sizeof(uint32_t))) - _uintval(_ptr_align(original)), PROT_READ | PROT_EXEC);
         } else {
             trampoline = nullptr;
         }
@@ -436,7 +440,7 @@ HookFunctionHandle* ArmMemHookFunction64::hook(void *target, void *hook_func, vo
 }
 
 void ArmMemHookFunction64::init() {
-    _make_rwx(insns_pool, sizeof(insns_pool));
+    ::mprotect(_ptr_align(insns_pool), _page_align(_uintval(insns_pool) + sizeof(insns_pool)) - _uintval(_ptr_align(insns_pool)), PROT_READ | PROT_WRITE);
 }
 
 bool ArmMemHookFunction64::unhook(HookFunctionHandle* handle) {
@@ -447,6 +451,7 @@ bool ArmMemHookFunction64::unhook(HookFunctionHandle* handle) {
     if (_make_rwx(handle->target, patch_size) == 0) {
         memcpy(reinterpret_cast<void *const>(handle->target), handle->backupInsns, patch_size);
         _flush_cache(handle->target, patch_size);
+        ::mprotect(_ptr_align(handle->target), _page_align(_uintval(handle->target) + patch_size) - _uintval(_ptr_align(handle->target)), PROT_READ | PROT_EXEC);
         handle->isActive = false;
         return true;
     }
