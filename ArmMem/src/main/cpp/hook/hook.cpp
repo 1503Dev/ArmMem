@@ -22,6 +22,15 @@ void* ArmMemHook::getSymbol(char* moduleName, char* symbol) {
 }
 
 HookFunctionHandle* ArmMemHook::hook(void *target, void *hook, void **originalPtr) {
+    static bool initialized = false;
+    if (!initialized) {
+        initialized = true;
+#ifdef __aarch64__
+        ArmMemHookFunction64::init();
+#else
+        ArmMemHookFunction32::init();
+#endif
+    }
 #ifdef __aarch64__
     return ArmMemHookFunction64::hook(target, hook, originalPtr);
 #endif
@@ -38,6 +47,15 @@ HookFunctionHandle* ArmMemHook::hook(char* moduleName, char* symbol, void *hook,
     return ArmMemHook::hook(target, hook, originalPtr);
 }
 void *ArmMemHook::hookV(void *target, void *hook, void *rwx, uintptr_t rwxSize) {
+    static bool initialized = false;
+    if (!initialized) {
+        initialized = true;
+#ifdef __aarch64__
+        ArmMemHookFunction64::init();
+#else
+        ArmMemHookFunction32::init();
+#endif
+    }
 #ifdef __aarch64__
     return ArmMemHookFunction64::hookV(target, hook, rwx, rwxSize);
 #endif

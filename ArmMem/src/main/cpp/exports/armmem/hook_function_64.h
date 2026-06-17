@@ -15,10 +15,11 @@ public:
     static void* hookV(void *target, void *hook, void *rwx, uintptr_t rwxSize);
     static bool unhook(HookFunctionHandle* handle);
 
+    static void init();
+
 private:
     static void fixInstructions(uint32_t *inp, int32_t count, uint32_t *outp);
     static uint32_t* allocateTrampoline();
-    static void init();
 };
 
 #endif //ARMMEM_HOOK_FUNCTION_64_H

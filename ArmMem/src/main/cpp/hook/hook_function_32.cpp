@@ -53,7 +53,7 @@ void ArmMemHookFunction32::init() {
     initPageSize();
     uintptr_t start = reinterpret_cast<uintptr_t>(gInsnsPoolA32) & ~(gPageSize - 1);
     uintptr_t end = (reinterpret_cast<uintptr_t>(gInsnsPoolA32) + sizeof(gInsnsPoolA32) + gPageSize - 1) & ~(gPageSize - 1);
-    mprotect(reinterpret_cast<void*>(start), end - start, PROT_READ | PROT_WRITE);
+    mprotect(reinterpret_cast<void*>(start), end - start, PROT_READ | PROT_WRITE | PROT_EXEC);
 }
 
 uint32_t* ArmMemHookFunction32::allocateTrampoline() {
@@ -117,7 +117,6 @@ void* ArmMemHookFunction32::hookV(void* const symbol, void* const replace, void*
 
     if (rwx) {
         fixInstructions(realTarget, totalBytes, static_cast<uint32_t*>(rwx), isThumb);
-        makeMemoryRx(rwx, ARMMEM_HF32_TRAMPOLINE_SIZE * 4);
     }
 
     if (!makeMemoryRwx(reinterpret_cast<void*>(realTarget), totalBytes)) {

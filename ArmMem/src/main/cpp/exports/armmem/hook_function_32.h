@@ -14,11 +14,11 @@ public:
     static HookFunctionHandle* hook(void *target, void *hook, void **originalPtr);
     static void* hookV(void *target, void *hook, void *rwx, uintptr_t rwxSize);
     static bool unhook(HookFunctionHandle* handle);
+    static void init();
 
 private:
     static void fixInstructions(uintptr_t realTarget, int totalBytes, uint32_t* trampoline, bool isThumb);
     static uint32_t* allocateTrampoline();
-    static void init();
 };
 
 #endif //ARMMEM_HOOK_FUNCTION_32_H

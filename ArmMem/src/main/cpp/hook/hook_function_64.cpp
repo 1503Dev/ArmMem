@@ -347,7 +347,6 @@ void* ArmMemHookFunction64::hookV(void *const symbol, void *const replace, void 
         if (trampoline) {
             if (rwx_size < count * 10u) return nullptr;
             fixInstructions(original, count, trampoline);
-            ::mprotect(_ptr_align(trampoline), _page_align(_uintval(trampoline) + (count * 10u * sizeof(uint32_t))) - _uintval(_ptr_align(trampoline)), PROT_READ | PROT_EXEC);
         }
 
         if (_make_rwx(original, 5 * sizeof(uint32_t)) == 0) {
@@ -365,7 +364,6 @@ void* ArmMemHookFunction64::hookV(void *const symbol, void *const replace, void 
         if (trampoline) {
             if (rwx_size < 10u) return nullptr;
             fixInstructions(original, 1, trampoline);
-            ::mprotect(_ptr_align(trampoline), _page_align(_uintval(trampoline) + (10u * sizeof(uint32_t))) - _uintval(_ptr_align(trampoline)), PROT_READ | PROT_EXEC);
         }
 
         if (_make_rwx(original, 1 * sizeof(uint32_t)) == 0) {
@@ -440,7 +438,7 @@ HookFunctionHandle* ArmMemHookFunction64::hook(void *target, void *hook_func, vo
 }
 
 void ArmMemHookFunction64::init() {
-    ::mprotect(_ptr_align(insns_pool), _page_align(_uintval(insns_pool) + sizeof(insns_pool)) - _uintval(_ptr_align(insns_pool)), PROT_READ | PROT_WRITE);
+    ::mprotect(_ptr_align(insns_pool), _page_align(_uintval(insns_pool) + sizeof(insns_pool)) - _uintval(_ptr_align(insns_pool)), PROT_READ | PROT_WRITE | PROT_EXEC);
 }
 
 bool ArmMemHookFunction64::unhook(HookFunctionHandle* handle) {
