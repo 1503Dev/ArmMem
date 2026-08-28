@@ -170,28 +170,52 @@ public class Memory {
     }
 
 
-    public static void writeDword(int pid, long address, int value) {
-        JNI.writeDword(pid, address, value);
+    public static boolean writeDword(int pid, long address, int value) {
+        return JNI.writeDword(pid, address, value);
     }
 
-    public static void writeDword(long address, int value) {
-        JNI.writeDword(address, value);
+    public static boolean writeDword(long address, int value) {
+        return JNI.writeDword(address, value);
     }
 
-    public static void writeFloat(int pid, long address, float value) {
-        JNI.writeFloat(pid, address, value);
+    public static boolean writeFloat(int pid, long address, float value) {
+        return JNI.writeFloat(pid, address, value);
     }
 
-    public static void writeFloat(long address, float value) {
-        JNI.writeFloat(address, value);
+    public static boolean writeFloat(long address, float value) {
+        return JNI.writeFloat(address, value);
     }
 
-    public static void writeDouble(int pid, long address, double value) {
-        JNI.writeDouble(pid, address, value);
+    public static boolean writeDouble(int pid, long address, double value) {
+        return JNI.writeDouble(pid, address, value);
     }
 
-    public static void writeDouble(long address, double value) {
-        JNI.writeDouble(address, value);
+    public static boolean writeDouble(long address, double value) {
+        return JNI.writeDouble(address, value);
+    }
+
+    public static boolean writeQword(int pid, long address, long value) {
+        return JNI.writeQword(pid, address, value);
+    }
+
+    public static boolean writeQword(long address, long value) {
+        return JNI.writeQword(address, value);
+    }
+
+    public static boolean writeByte(int pid, long address, byte value) {
+        return JNI.writeByte(pid, address, value);
+    }
+
+    public static boolean writeByte(long address, byte value) {
+        return JNI.writeByte(address, value);
+    }
+
+    public static boolean writeWord(int pid, long address, short value) {
+        return JNI.writeWord(pid, address, value);
+    }
+
+    public static boolean writeWord(long address, short value) {
+        return JNI.writeWord(address, value);
     }
 
     public static int openMemFile(int pid) {
@@ -240,5 +264,41 @@ public class Memory {
 
     public static double readDouble(long address) {
         return JNI.readDouble(address);
+    }
+
+    public static long readQword(int pid, long address) {
+        return JNI.readQword(pid, address);
+    }
+
+    public static long readQword(long address, int fd) {
+        return JNI.readQword(address, fd);
+    }
+
+    public static long readQword(long address) {
+        return JNI.readQword(address);
+    }
+
+    public static byte readByte(int pid, long address) {
+        return JNI.readByte(pid, address);
+    }
+
+    public static byte readByte(long address, int fd) {
+        return JNI.readByte(address, fd);
+    }
+
+    public static byte readByte(long address) {
+        return JNI.readByte(address);
+    }
+
+    public static short readWord(int pid, long address) {
+        return JNI.readWord(pid, address);
+    }
+
+    public static short readWord(long address, int fd) {
+        return JNI.readWord(address, fd);
+    }
+
+    public static short readWord(long address) {
+        return JNI.readWord(address);
     }
 }

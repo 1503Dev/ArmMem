@@ -11,9 +11,22 @@
 #include "../exports/armmem/memory_monitor_hit.h"
 #include <thread>
 #include <chrono>
-#include <iostream>
 #include <random>
+#include <atomic>
 #include <dlfcn.h>
+
+struct PendingMonitorEvent {
+    uintptr_t faultAddr;
+    uintptr_t pc;
+    uintptr_t pageStart;
+    bool isWrite;
+};
+
+static constexpr size_t kMaxPendingEvents = 64;
+static PendingMonitorEvent g_pendingEvents[kMaxPendingEvents];
+static std::atomic<size_t> g_pendingHead{0};
+static std::atomic<size_t> g_pendingTail{0};
+static std::atomic_flag g_workerRunning = ATOMIC_FLAG_INIT;
 
 MemoryRange ArmMemMemory::toMemoryRange(int id) {
     switch (id) {
@@ -155,7 +168,8 @@ std::vector<MemoryRegion> ArmMemMemory::getMemoryRegions(int pid, MemoryRange ra
             MemoryRegion reg;
             reg.start = start;
             reg.size = end - start;
-            strncpy(reg.path, has_path ? path : "anonymous", sizeof(reg.path));
+            strncpy(reg.path, has_path ? path : "anonymous", sizeof(reg.path) - 1);
+            reg.path[sizeof(reg.path) - 1] = '\0';
             regions.push_back(reg);
         }
     }
@@ -948,6 +962,8 @@ int ArmMemMemory::openMemFile(int pid) {
 
 std::mutex ArmMemMemory::m_monitorMutex;
 std::unordered_map<int, std::shared_ptr<MemoryMonitorHandle*>> ArmMemMemory::m_monitorHandles;
+static struct sigaction g_oldSigaction{};
+static bool g_sigactionInstalled = false;
 
 MemoryMonitorHandle* ArmMemMemory::listenForWrite(int pid, uintptr_t address, void *callback, void *userData) {
     return listen(pid, address, 0, callback, userData);
@@ -968,14 +984,8 @@ MemoryMonitorHandle* ArmMemMemory::listen(int pid, uintptr_t address, int type, 
 
     std::lock_guard<std::mutex> lock(m_monitorMutex);
 
-    unsigned seed = std::chrono::steady_clock::now().time_since_epoch().count();
-    std::mt19937 gen(seed);
-    std::uniform_int_distribution<int> dist_val(100000000, 999999999);
-    std::uniform_int_distribution<int> dist_sign(0, 1);
-    int hash = dist_val(gen);
-    if (dist_sign(gen) == 0) {
-        hash = -hash;
-    }
+    static std::atomic<int> s_nextHash{100000000};
+    int hash = s_nextHash.fetch_add(1);
 
     auto* handle = new MemoryMonitorHandle();
     handle->pid = pid;
@@ -994,15 +1004,22 @@ MemoryMonitorHandle* ArmMemMemory::listen(int pid, uintptr_t address, int type, 
 }
 
 MemoryMonitorHandle* ArmMemMemory::_listenForWrite(MemoryMonitorHandle* handle) {
-    struct sigaction sa{};
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_SIGINFO | SA_RESTART | SA_NODEFER;
-    sa.sa_sigaction = syncMonitorSignalHandler;
-    sigaction(SIGSEGV, &sa, nullptr);
+    if (!g_sigactionInstalled) {
+        struct sigaction sa{};
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = SA_SIGINFO | SA_RESTART;
+        sa.sa_sigaction = syncMonitorSignalHandler;
+        sigaction(SIGSEGV, &sa, &g_oldSigaction);
+        g_sigactionInstalled = true;
+    }
 
     long pageSize = sysconf(_SC_PAGESIZE);
     uintptr_t pageStart = handle->address & ~(pageSize - 1);
     mprotect(reinterpret_cast<void *>(pageStart), pageSize, PROT_READ);
+
+    if (!g_workerRunning.test_and_set(std::memory_order_acquire)) {
+        std::thread([]() { _processMonitorEvents(); }).detach();
+    }
 
     return handle;
 }
@@ -1048,71 +1065,95 @@ void ArmMemMemory::syncMonitorSignalHandler(int sig, siginfo_t* si, void* contex
     uintptr_t pc = ucontext->uc_mcontext.arm_pc;
 #endif
 
+    size_t nextHead = g_pendingHead.load(std::memory_order_relaxed);
+    size_t nextNextHead = (nextHead + 1) % kMaxPendingEvents;
+    if (nextNextHead != g_pendingTail.load(std::memory_order_acquire)) {
+        g_pendingEvents[nextHead] = {faultAddr, pc, pageStart, true};
+        g_pendingHead.store(nextNextHead, std::memory_order_release);
+    }
+
     mprotect(reinterpret_cast<void*>(pageStart), pageSize, PROT_READ | PROT_WRITE);
 
-    bool modified = false;
-    if (m_monitorMutex.try_lock()) {
+#ifdef __aarch64__
+    ucontext->uc_mcontext.pc += 4;
+#elif __arm__
+    ucontext->uc_mcontext.arm_pc += (ucontext->uc_mcontext.arm_cpsr & 0x20) ? 2 : 4;
+#endif
+}
+
+void ArmMemMemory::_processMonitorEvents() {
+    while (true) {
+        size_t head = g_pendingHead.load(std::memory_order_acquire);
+        size_t tail = g_pendingTail.load(std::memory_order_relaxed);
+
+        if (head == tail) {
+            g_workerRunning.clear(std::memory_order_release);
+            if (g_pendingHead.load(std::memory_order_acquire) == g_pendingTail.load(std::memory_order_relaxed)) {
+                break;
+            }
+            continue;
+        }
+
+        PendingMonitorEvent event = g_pendingEvents[tail];
+        g_pendingTail.store((tail + 1) % kMaxPendingEvents, std::memory_order_release);
+
+        std::lock_guard<std::mutex> lock(m_monitorMutex);
+
         std::vector<MemoryMonitorHandle*> toRemove;
+        MemoryMonitorHandle* matchedHandle = nullptr;
 
         for (auto& pair : m_monitorHandles) {
             MemoryMonitorHandle* target = *pair.second;
-
-            if (faultAddr >= target->address && faultAddr < (target->address + target->size)) {
-                uint32_t originalVal = *reinterpret_cast<uint32_t*>(target->address);
-
-                const char* moduleName = nullptr;
-                const char* symbolName = nullptr;
-                uintptr_t accessorFunction = 0;
-                uintptr_t accessorModuleBase = 0;
-                Dl_info info;
-                auto* hit = new MemoryMonitorHit();
-                if (dladdr(reinterpret_cast<void*>(pc), &info)) {
-                    moduleName = info.dli_fname;
-                    symbolName = info.dli_sname;
-                    accessorFunction = reinterpret_cast<uintptr_t>(info.dli_saddr);
-                    accessorModuleBase = reinterpret_cast<uintptr_t>(info.dli_fbase);
-                }
-
-                hit->originalValue = originalVal;
-                hit->accessorAddress = pc;
-                hit->accessorSymbol = symbolName;
-                hit->accessorModuleName = moduleName;
-                hit->accessorFunction = accessorFunction;
-                hit->accessorModuleBase = accessorModuleBase;
-
-                if (target->callback) {
-                    void *result = target->callback(target, hit);
-                    if (target->type == 0 && result != nullptr) {
-                        *reinterpret_cast<uint32_t *>(target->address) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(result));
-                        ArmMem::logV(TAG, __func__, "Monitor hit %s %i[%p], replaced to %i", (target->type == 0 ? "WRITE" : "READ"), target->hash, target->address, result);
-                    } else {
-                        ArmMem::logV(TAG, __func__, "Monitor hit %s %i[%p]", (target->type == 0 ? "WRITE" : "READ"), target->hash, target->address);
-                    }
-                    modified = true;
-                }
-
-                if (target->isOnce) {
-                    toRemove.push_back(target);
-                } else {
-                    std::thread([target]() {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                        std::lock_guard<std::mutex> lock(m_monitorMutex);
-                        _updatePageProtection(target->address);
-                    }).detach();
-                }
+            if (event.faultAddr >= target->address && event.faultAddr < (target->address + target->size)) {
+                matchedHandle = target;
                 break;
             }
         }
 
-        for (auto* target : toRemove) m_monitorHandles.erase(target->hash);
-        m_monitorMutex.unlock();
-    }
-    if (modified) {
-#ifdef __aarch64__
-        ucontext->uc_mcontext.pc += 4;
-#elif __arm__
-        ucontext->uc_mcontext.arm_pc += (ucontext->uc_mcontext.arm_cpsr & 0x20) ? 2 : 4;
-#endif
+        if (matchedHandle) {
+            uint32_t originalVal = *reinterpret_cast<uint32_t*>(matchedHandle->address);
+
+            const char* moduleName = nullptr;
+            const char* symbolName = nullptr;
+            uintptr_t accessorFunction = 0;
+            uintptr_t accessorModuleBase = 0;
+            Dl_info info;
+            MemoryMonitorHit hit{};
+            if (dladdr(reinterpret_cast<void*>(event.pc), &info)) {
+                moduleName = info.dli_fname;
+                symbolName = info.dli_sname;
+                accessorFunction = reinterpret_cast<uintptr_t>(info.dli_saddr);
+                accessorModuleBase = reinterpret_cast<uintptr_t>(info.dli_fbase);
+            }
+
+            hit.originalValue = originalVal;
+            hit.accessorAddress = event.pc;
+            hit.accessorSymbol = symbolName;
+            hit.accessorModuleName = moduleName;
+            hit.accessorFunction = accessorFunction;
+            hit.accessorModuleBase = accessorModuleBase;
+
+            if (matchedHandle->callback) {
+                void *result = matchedHandle->callback(matchedHandle, &hit);
+                if (matchedHandle->type == 0 && result != nullptr) {
+                    *reinterpret_cast<uint32_t *>(matchedHandle->address) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(result));
+                    ArmMem::logV(TAG, __func__, "Monitor hit %s %i[%p], replaced to %i", (matchedHandle->type == 0 ? "WRITE" : "READ"), matchedHandle->hash, matchedHandle->address, result);
+                } else {
+                    ArmMem::logV(TAG, __func__, "Monitor hit %s %i[%p]", (matchedHandle->type == 0 ? "WRITE" : "READ"), matchedHandle->hash, matchedHandle->address);
+                }
+            }
+
+            if (matchedHandle->isOnce) {
+                toRemove.push_back(matchedHandle);
+            }
+        }
+
+        for (auto* target : toRemove) {
+            m_monitorHandles.erase(target->hash);
+            delete target;
+        }
+
+        _updatePageProtection(event.pageStart);
     }
 }
 

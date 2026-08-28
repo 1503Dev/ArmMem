@@ -18,8 +18,11 @@ Java_dev1503_armmem_hook_JNI_hook(JNIEnv *env, jclass clazz, jlong address, jobj
 
 JNIEXPORT jlong JNICALL
 Java_dev1503_armmem_hook_JNI_getFunctionAddress(JNIEnv *env, jclass clazz, jstring moduleName, jstring functionName) {
-    char* module = const_cast<char *>(env->GetStringUTFChars(moduleName, nullptr));
-    char* function = const_cast<char *>(env->GetStringUTFChars(functionName, nullptr));
-    return (jlong)ArmMemHook::getSymbol(module, function);
+    const char* module = env->GetStringUTFChars(moduleName, nullptr);
+    const char* function = env->GetStringUTFChars(functionName, nullptr);
+    auto result = (jlong)ArmMemHook::getSymbol(const_cast<char*>(module), const_cast<char*>(function));
+    env->ReleaseStringUTFChars(moduleName, module);
+    env->ReleaseStringUTFChars(functionName, function);
+    return result;
 }
 }

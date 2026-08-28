@@ -7,6 +7,7 @@
 
 #include <cstring>
 #include <cstdint>
+#include <cstdlib>
 
 struct HookFunctionHandle {
     bool isSuccess = false;
@@ -22,6 +23,16 @@ struct HookFunctionHandle {
         memset(backupInsns, 0, sizeof(backupInsns));
         memset(padding, 0, sizeof(padding));
     }
+
+    ~HookFunctionHandle() {
+        if (message) {
+            free(message);
+            message = nullptr;
+        }
+    }
+
+    HookFunctionHandle(const HookFunctionHandle&) = delete;
+    HookFunctionHandle& operator=(const HookFunctionHandle&) = delete;
 };
 
 static HookFunctionHandle g_hook_pool[256];

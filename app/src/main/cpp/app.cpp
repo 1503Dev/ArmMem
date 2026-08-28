@@ -142,3 +142,67 @@ Java_dev1503_armmem_app_JNI_unlisRd(JNIEnv *env, jobject thiz) {
         ArmMemMemory::unlisten(handleRd);
     }
 }
+
+static HookFunctionHandle* testHookHandle = nullptr;
+static jstring (*testOriginalFunc)(JNIEnv*, jobject) = nullptr;
+
+static jstring testHookedFunc(JNIEnv *env, jobject thiz) {
+    return env->NewStringUTF("HOOKED");
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_dev1503_armmem_app_JNI_testHook(JNIEnv *env, jobject thiz) {
+    void* target = ArmMemHook::getSymbol("libapp.so", "Java_dev1503_armmem_app_JNI_stringFromJNI");
+    if (!target) return JNI_FALSE;
+
+    testHookHandle = ArmMemHook::hook(target, (void*)testHookedFunc, (void**)&testOriginalFunc);
+    if (!testHookHandle || !testHookHandle->isSuccess) return JNI_FALSE;
+
+    return JNI_TRUE;
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_dev1503_armmem_app_JNI_testCallStringFromJNI(JNIEnv *env, jobject thiz) {
+    return env->NewStringUTF("ORIGINAL");
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_dev1503_armmem_app_JNI_testUnhook(JNIEnv *env, jobject thiz) {
+    if (!testHookHandle) return JNI_FALSE;
+    bool result = ArmMemHook::unhook(testHookHandle);
+    testHookHandle = nullptr;
+    return result ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C"
+JNIEXPORT jlong JNICALL
+Java_dev1503_armmem_app_JNI_testGetFunctionAddress(JNIEnv *env, jobject thiz, jstring moduleName, jstring symbolName) {
+    const char* module = env->GetStringUTFChars(moduleName, nullptr);
+    const char* symbol = env->GetStringUTFChars(symbolName, nullptr);
+    void* addr = ArmMemHook::getSymbol(const_cast<char*>(module), const_cast<char*>(symbol));
+    env->ReleaseStringUTFChars(moduleName, module);
+    env->ReleaseStringUTFChars(symbolName, symbol);
+    return (jlong)addr;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_dev1503_armmem_app_JNI_testHookNullTarget(JNIEnv *env, jobject thiz) {
+    HookFunctionHandle* h = ArmMemHook::hook(nullptr, (void*)testHookedFunc, nullptr);
+    int result = h->isSuccess ? 1 : 0;
+    delete h;
+    return result;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_dev1503_armmem_app_JNI_testHookNullFunc(JNIEnv *env, jobject thiz) {
+    void* target = ArmMemHook::getSymbol("libapp.so", "Java_dev1503_armmem_app_JNI_stringFromJNI");
+    HookFunctionHandle* h = ArmMemHook::hook(target, nullptr, nullptr);
+    int result = h->isSuccess ? 1 : 0;
+    delete h;
+    return result;
+}

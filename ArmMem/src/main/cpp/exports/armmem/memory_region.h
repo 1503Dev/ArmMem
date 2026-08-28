@@ -13,6 +13,9 @@ struct MemoryRegion {
     size_t size;
     char path[256];
 
+    MemoryRegion() : start(0), size(0) {
+        path[0] = '\0';
+    }
 //    MemoryRegion* subtract(MemoryRegion& other) const;
 };
 

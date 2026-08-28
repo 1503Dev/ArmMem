@@ -5,11 +5,15 @@
 #include <jni.h>
 #include <android/log.h>
 #include <dlfcn.h>
+#include <atomic>
+#include <cstring>
 #include "../exports/armmem/hook_function_64.h"
 #include "../exports/armmem/hook_function_32.h"
 #include "../exports/armmem/memory.h"
 #include "../exports/armmem/hook.h"
 #include "hook_function_global.h"
+
+static std::atomic<bool> g_hookInitialized{false};
 
 void* ArmMemHook::openModule(char* moduleName){
     void* handle = dlopen(moduleName, RTLD_NOLOAD | RTLD_LAZY);
@@ -22,48 +26,49 @@ void* ArmMemHook::getSymbol(char* moduleName, char* symbol) {
 }
 
 HookFunctionHandle* ArmMemHook::hook(void *target, void *hook, void **originalPtr) {
-    static bool initialized = false;
-    if (!initialized) {
-        initialized = true;
+    if (!g_hookInitialized.load(std::memory_order_acquire)) {
 #ifdef __aarch64__
         ArmMemHookFunction64::init();
 #else
         ArmMemHookFunction32::init();
 #endif
+        g_hookInitialized.store(true, std::memory_order_release);
     }
 #ifdef __aarch64__
     return ArmMemHookFunction64::hook(target, hook, originalPtr);
-#endif
+#else
     return ArmMemHookFunction32::hook(target, hook, originalPtr);
+#endif
 }
 HookFunctionHandle* ArmMemHook::hook(char* moduleName, char* symbol, void *hook, void **originalPtr) {
     void* target = getSymbol(moduleName, symbol);
     if (!target) {
         auto* handle = new HookFunctionHandle();
         handle->isSuccess = false;
-        handle->message = ArmMem_HookFunction_MSG_INVALID_MODULE_OR_SYMBOL_NAME;
+        handle->message = strdup(ArmMem_HookFunction_MSG_INVALID_MODULE_OR_SYMBOL_NAME);
         return handle;
     }
     return ArmMemHook::hook(target, hook, originalPtr);
 }
 void *ArmMemHook::hookV(void *target, void *hook, void *rwx, uintptr_t rwxSize) {
-    static bool initialized = false;
-    if (!initialized) {
-        initialized = true;
+    if (!g_hookInitialized.load(std::memory_order_acquire)) {
 #ifdef __aarch64__
         ArmMemHookFunction64::init();
 #else
         ArmMemHookFunction32::init();
 #endif
+        g_hookInitialized.store(true, std::memory_order_release);
     }
 #ifdef __aarch64__
     return ArmMemHookFunction64::hookV(target, hook, rwx, rwxSize);
-#endif
+#else
     return ArmMemHookFunction32::hookV(target, hook, rwx, rwxSize);
+#endif
 }
 bool ArmMemHook::unhook(HookFunctionHandle *handle) {
 #ifdef __aarch64__
     return ArmMemHookFunction64::unhook(handle);
-#endif
+#else
     return ArmMemHookFunction32::unhook(handle);
+#endif
 }

@@ -97,4 +97,19 @@ public class MemoryValue {
     public short readWord(int fd) {
         return JNI.readWord(address, fd);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof MemoryValue)) return false;
+        MemoryValue that = (MemoryValue) o;
+        return pid == that.pid && address == that.address;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = pid;
+        result = 31 * result + (int) (address ^ (address >>> 32));
+        return result;
+    }
 }

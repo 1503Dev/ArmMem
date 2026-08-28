@@ -9,27 +9,27 @@ public class MemoryValueSet extends HashSet<MemoryValue> {
     }
 
     public boolean addDword(int pid, long address, int value) {
-        return add(new MemoryValue(pid, address).writeDword(value));
+        return add(new MemoryValue(pid, address));
     }
 
     public boolean addFloat(int pid, long address, float value) {
-        return add(new MemoryValue(pid, address).writeFloat(value));
+        return add(new MemoryValue(pid, address));
     }
 
     public boolean addDouble(int pid, long address, double value) {
-        return add(new MemoryValue(pid, address).writeDouble(value));
+        return add(new MemoryValue(pid, address));
     }
 
     public boolean addQword(int pid, long address, long value) {
-        return add(new MemoryValue(pid, address).writeQword(value));
+        return add(new MemoryValue(pid, address));
     }
 
     public boolean addByte(int pid, long address, byte value) {
-        return add(new MemoryValue(pid, address).writeByte(value));
+        return add(new MemoryValue(pid, address));
     }
 
     public boolean addWord(int pid, long address, short value) {
-        return add(new MemoryValue(pid, address).writeWord(value));
+        return add(new MemoryValue(pid, address));
     }
 
     public boolean contains(MemoryValue memoryValue) {
@@ -37,6 +37,7 @@ public class MemoryValueSet extends HashSet<MemoryValue> {
     }
 
     public int getFirstPid() {
+        if (isEmpty()) return -1;
         return iterator().next().getPid();
     }
 

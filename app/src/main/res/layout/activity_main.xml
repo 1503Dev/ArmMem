@@ -86,6 +86,11 @@
         android:layout_height="wrap_content"
         android:text="解除监控读取"
         android:onClick="unlisRd"/>
+    <com.google.android.material.button.MaterialButton
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="运行测试"
+        android:onClick="runTests"/>
 
 
 </LinearLayout>

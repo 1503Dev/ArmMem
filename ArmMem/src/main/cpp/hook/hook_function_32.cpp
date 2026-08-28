@@ -11,7 +11,7 @@
 #include <android/log.h>
 
 
-#define ARMMEM_HF32_MAX_BACKUPS 128
+#define ARMMEM_HF32_MAX_BACKUPS 256
 #define ARMMEM_HF32_TRAMPOLINE_SIZE 64
 
 #define _flush_cache(addr, size) __builtin___clear_cache(reinterpret_cast<char*>(addr), reinterpret_cast<char*>(addr) + size)

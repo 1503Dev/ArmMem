@@ -14,15 +14,19 @@ Java_dev1503_armmem_memory_JNI_getPid__(JNIEnv *env, jclass clazz) {
 }
 JNIEXPORT jint JNICALL
 Java_dev1503_armmem_memory_JNI_getPid__Ljava_lang_String_2(JNIEnv *env, jclass clazz, jstring packageName) {
-    std::string packageNameStr = env->GetStringUTFChars(packageName, nullptr);
-    return ArmMemMemory::getPidByPackage(packageNameStr.c_str());
+    const char* packageNameChars = env->GetStringUTFChars(packageName, nullptr);
+    int result = ArmMemMemory::getPidByPackage(packageNameChars);
+    env->ReleaseStringUTFChars(packageName, packageNameChars);
+    return result;
 }
 JNIEXPORT jlongArray JNICALL
 Java_dev1503_armmem_memory_JNI_searchDword__III(JNIEnv *env, jclass clazz, jint pid, jint value,
-                                           jint memoryRange) {
+                                            jint memoryRange) {
     std::vector<MemoryValue> results = ArmMemMemory::searchDword(pid, value, ArmMemMemory::toMemoryRange(memoryRange));
     jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
     jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
     for (size_t i = 0; i < results.size(); i++) {
         elements[i] = (jlong)results[i].address;
     }
@@ -33,12 +37,15 @@ JNIEXPORT jlongArray JNICALL
 Java_dev1503_armmem_memory_JNI_searchDword__II_3J(JNIEnv *env, jclass clazz, jint pid, jint value, jlongArray prevList) {
     jsize len = env->GetArrayLength(prevList);
     jlong* prevListElements = env->GetLongArrayElements(prevList, nullptr);
+    if (prevListElements == nullptr) return nullptr;
     std::vector<uintptr_t> prevListVector(prevListElements, prevListElements + len);
     env->ReleaseLongArrayElements(prevList, prevListElements, JNI_ABORT);
 
     std::vector<MemoryValue> results = ArmMemMemory::searchDword(pid, value, prevListVector);
     jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
     jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
     for (size_t i = 0; i < results.size(); i++) {
         elements[i] = (jlong)results[i].address;
     }
@@ -56,10 +63,12 @@ Java_dev1503_armmem_memory_JNI_searchDword__I_3J(JNIEnv *env, jclass clazz, jint
 }
 JNIEXPORT jlongArray JNICALL
 Java_dev1503_armmem_memory_JNI_searchFloat__IFFI(JNIEnv *env, jclass clazz, jint pid, jfloat value, jfloat radius,
-                                                jint memoryRange) {
+                                                 jint memoryRange) {
     std::vector<MemoryValue> results = ArmMemMemory::searchFloat(pid, value, radius, ArmMemMemory::toMemoryRange(memoryRange));
     jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
     jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
     for (size_t i = 0; i < results.size(); i++) {
         elements[i] = (jlong)results[i].address;
     }
@@ -70,12 +79,15 @@ JNIEXPORT jlongArray JNICALL
 Java_dev1503_armmem_memory_JNI_searchFloat__IFF_3J(JNIEnv *env, jclass clazz, jint pid, jfloat value, jfloat radius, jlongArray prevList) {
     jsize len = env->GetArrayLength(prevList);
     jlong* prevListElements = env->GetLongArrayElements(prevList, nullptr);
+    if (prevListElements == nullptr) return nullptr;
     std::vector<uintptr_t> prevListVector(prevListElements, prevListElements + len);
     env->ReleaseLongArrayElements(prevList, prevListElements, JNI_ABORT);
 
     std::vector<MemoryValue> results = ArmMemMemory::searchFloat(pid, value, radius, prevListVector);
     jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
     jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
     for (size_t i = 0; i < results.size(); i++) {
         elements[i] = (jlong)results[i].address;
     }
@@ -95,10 +107,12 @@ Java_dev1503_armmem_memory_JNI_searchFloat__FF_3J(JNIEnv *env, jclass clazz, jfl
 
 JNIEXPORT jlongArray JNICALL
 Java_dev1503_armmem_memory_JNI_searchDouble__IDDI(JNIEnv *env, jclass clazz, jint pid, jdouble value, jdouble radius,
-                                                 jint memoryRange) {
+                                                  jint memoryRange) {
     std::vector<MemoryValue> results = ArmMemMemory::searchDouble(pid, value, radius, ArmMemMemory::toMemoryRange(memoryRange));
     jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
     jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
     for (size_t i = 0; i < results.size(); i++) {
         elements[i] = (jlong)results[i].address;
     }
@@ -109,12 +123,15 @@ JNIEXPORT jlongArray JNICALL
 Java_dev1503_armmem_memory_JNI_searchDouble__IDD_3J(JNIEnv *env, jclass clazz, jint pid, jdouble value, jdouble radius, jlongArray prevList) {
     jsize len = env->GetArrayLength(prevList);
     jlong* prevListElements = env->GetLongArrayElements(prevList, nullptr);
+    if (prevListElements == nullptr) return nullptr;
     std::vector<uintptr_t> prevListVector(prevListElements, prevListElements + len);
     env->ReleaseLongArrayElements(prevList, prevListElements, JNI_ABORT);
 
     std::vector<MemoryValue> results = ArmMemMemory::searchDouble(pid, value, radius, prevListVector);
     jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
     jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
     for (size_t i = 0; i < results.size(); i++) {
         elements[i] = (jlong)results[i].address;
     }
@@ -134,10 +151,12 @@ Java_dev1503_armmem_memory_JNI_searchDouble__DD_3J(JNIEnv *env, jclass clazz, jd
 
 JNIEXPORT jlongArray JNICALL
 Java_dev1503_armmem_memory_JNI_searchQword__IJI(JNIEnv *env, jclass clazz, jint pid, jlong value,
-                                                jint memoryRange) {
+                                                 jint memoryRange) {
     std::vector<MemoryValue> results = ArmMemMemory::searchQword(pid, value, ArmMemMemory::toMemoryRange(memoryRange));
     jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
     jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
     for (size_t i = 0; i < results.size(); i++) {
         elements[i] = (jlong)results[i].address;
     }
@@ -149,12 +168,15 @@ JNIEXPORT jlongArray JNICALL
 Java_dev1503_armmem_memory_JNI_searchQword__IJ_3J(JNIEnv *env, jclass clazz, jint pid, jlong value, jlongArray prevList) {
     jsize len = env->GetArrayLength(prevList);
     jlong* prevListElements = env->GetLongArrayElements(prevList, nullptr);
+    if (prevListElements == nullptr) return nullptr;
     std::vector<uintptr_t> prevListVector(prevListElements, prevListElements + len);
     env->ReleaseLongArrayElements(prevList, prevListElements, JNI_ABORT);
 
     std::vector<MemoryValue> results = ArmMemMemory::searchQword(pid, value, prevListVector);
     jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
     jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
     for (size_t i = 0; i < results.size(); i++) {
         elements[i] = (jlong)results[i].address;
     }
@@ -174,10 +196,12 @@ Java_dev1503_armmem_memory_JNI_searchQword__J_3J(JNIEnv *env, jclass clazz, jlon
 
 JNIEXPORT jlongArray JNICALL
 Java_dev1503_armmem_memory_JNI_searchByte__IBI(JNIEnv *env, jclass clazz, jint pid, jbyte value,
-                                               jint memoryRange) {
+                                                jint memoryRange) {
     std::vector<MemoryValue> results = ArmMemMemory::searchByte(pid, (signed char)value, ArmMemMemory::toMemoryRange(memoryRange));
     jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
     jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
     for (size_t i = 0; i < results.size(); i++) {
         elements[i] = (jlong)results[i].address;
     }
@@ -189,12 +213,15 @@ JNIEXPORT jlongArray JNICALL
 Java_dev1503_armmem_memory_JNI_searchByte__IB_3J(JNIEnv *env, jclass clazz, jint pid, jbyte value, jlongArray prevList) {
     jsize len = env->GetArrayLength(prevList);
     jlong* prevListElements = env->GetLongArrayElements(prevList, nullptr);
+    if (prevListElements == nullptr) return nullptr;
     std::vector<uintptr_t> prevListVector(prevListElements, prevListElements + len);
     env->ReleaseLongArrayElements(prevList, prevListElements, JNI_ABORT);
 
     std::vector<MemoryValue> results = ArmMemMemory::searchByte(pid, (signed char)value, prevListVector);
     jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
     jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
     for (size_t i = 0; i < results.size(); i++) {
         elements[i] = (jlong)results[i].address;
     }
@@ -214,10 +241,12 @@ Java_dev1503_armmem_memory_JNI_searchByte__B_3J(JNIEnv *env, jclass clazz, jbyte
 
 JNIEXPORT jlongArray JNICALL
 Java_dev1503_armmem_memory_JNI_searchWord__ISI(JNIEnv *env, jclass clazz, jint pid, jshort value,
-                                               jint memoryRange) {
+                                                jint memoryRange) {
     std::vector<MemoryValue> results = ArmMemMemory::searchWord(pid, (short)value, ArmMemMemory::toMemoryRange(memoryRange));
     jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
     jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
     for (size_t i = 0; i < results.size(); i++) {
         elements[i] = (jlong)results[i].address;
     }
@@ -229,12 +258,15 @@ JNIEXPORT jlongArray JNICALL
 Java_dev1503_armmem_memory_JNI_searchWord__IS_3J(JNIEnv *env, jclass clazz, jint pid, jshort value, jlongArray prevList) {
     jsize len = env->GetArrayLength(prevList);
     jlong* prevListElements = env->GetLongArrayElements(prevList, nullptr);
+    if (prevListElements == nullptr) return nullptr;
     std::vector<uintptr_t> prevListVector(prevListElements, prevListElements + len);
     env->ReleaseLongArrayElements(prevList, prevListElements, JNI_ABORT);
 
     std::vector<MemoryValue> results = ArmMemMemory::searchWord(pid, (short)value, prevListVector);
     jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
     jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
     for (size_t i = 0; i < results.size(); i++) {
         elements[i] = (jlong)results[i].address;
     }
@@ -252,66 +284,66 @@ Java_dev1503_armmem_memory_JNI_searchWord__S_3J(JNIEnv *env, jclass clazz, jshor
     return Java_dev1503_armmem_memory_JNI_searchWord__IS_3J(env, clazz, getpid(), value, prevList);
 }
 
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_dev1503_armmem_memory_JNI_writeDword__IJI(JNIEnv *env, jclass clazz, jint pid, jlong address,
-                                               jint value) {
-    ArmMemMemory::writeDword(pid, (uintptr_t)address, value);
+                                                jint value) {
+    return ArmMemMemory::writeDword(pid, (uintptr_t)address, value) ? JNI_TRUE : JNI_FALSE;
 }
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_dev1503_armmem_memory_JNI_writeDword__JI(JNIEnv *env, jclass clazz, jlong address, jint value) {
-    ArmMemMemory::writeDword((uintptr_t)address, value);
+    return ArmMemMemory::writeDword((uintptr_t)address, value) ? JNI_TRUE : JNI_FALSE;
 }
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_dev1503_armmem_memory_JNI_writeFloat__IJF(JNIEnv *env, jclass clazz, jint pid, jlong address,
-                                               jfloat value) {
-    ArmMemMemory::writeFloat(pid, (uintptr_t)address, value);
+                                                jfloat value) {
+    return ArmMemMemory::writeFloat(pid, (uintptr_t)address, value) ? JNI_TRUE : JNI_FALSE;
 }
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_dev1503_armmem_memory_JNI_writeFloat__JF(JNIEnv *env, jclass clazz, jlong address, jfloat value) {
-    ArmMemMemory::writeFloat((uintptr_t)address, value);
+    return ArmMemMemory::writeFloat((uintptr_t)address, value) ? JNI_TRUE : JNI_FALSE;
 }
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_dev1503_armmem_memory_JNI_writeDouble__IJD(JNIEnv *env, jclass clazz, jint pid, jlong address,
-                                               jdouble value) {
-    ArmMemMemory::writeDouble(pid, (uintptr_t)address, value);
+                                                jdouble value) {
+    return ArmMemMemory::writeDouble(pid, (uintptr_t)address, value) ? JNI_TRUE : JNI_FALSE;
 }
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_dev1503_armmem_memory_JNI_writeDouble__JD(JNIEnv *env, jclass clazz, jlong address, jdouble value) {
-    ArmMemMemory::writeDouble((uintptr_t)address, value);
+    return ArmMemMemory::writeDouble((uintptr_t)address, value) ? JNI_TRUE : JNI_FALSE;
 }
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_dev1503_armmem_memory_JNI_writeQword__IJJ(JNIEnv *env, jclass clazz, jint pid, jlong address,
-                                               jlong value) {
-    ArmMemMemory::writeQword(pid, (uintptr_t)address, value);
+                                                jlong value) {
+    return ArmMemMemory::writeQword(pid, (uintptr_t)address, value) ? JNI_TRUE : JNI_FALSE;
 }
 
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_dev1503_armmem_memory_JNI_writeQword__JJ(JNIEnv *env, jclass clazz, jlong address, jlong value) {
-    ArmMemMemory::writeQword((uintptr_t)address, value);
+    return ArmMemMemory::writeQword((uintptr_t)address, value) ? JNI_TRUE : JNI_FALSE;
 }
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_dev1503_armmem_memory_JNI_writeByte__IJB(JNIEnv *env, jclass clazz, jint pid, jlong address,
-                                              jbyte value) {
+                                               jbyte value) {
     auto val = (signed char)value;
-    ArmMemMemory::writeMemory(pid, (uintptr_t)address, &val, sizeof(signed char));
+    return ArmMemMemory::writeMemory(pid, (uintptr_t)address, &val, sizeof(signed char)) ? JNI_TRUE : JNI_FALSE;
 }
 
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_dev1503_armmem_memory_JNI_writeByte__JB(JNIEnv *env, jclass clazz, jlong address, jbyte value) {
     auto val = (signed char)value;
-    ArmMemMemory::writeMemory((uintptr_t)address, &val, sizeof(signed char));
+    return ArmMemMemory::writeMemory((uintptr_t)address, &val, sizeof(signed char)) ? JNI_TRUE : JNI_FALSE;
 }
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_dev1503_armmem_memory_JNI_writeWord__IJS(JNIEnv *env, jclass clazz, jint pid, jlong address,
-                                              jshort value) {
+                                               jshort value) {
     auto val = (short)value;
-    ArmMemMemory::writeMemory(pid, (uintptr_t)address, &val, sizeof(short));
+    return ArmMemMemory::writeMemory(pid, (uintptr_t)address, &val, sizeof(short)) ? JNI_TRUE : JNI_FALSE;
 }
 
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_dev1503_armmem_memory_JNI_writeWord__JS(JNIEnv *env, jclass clazz, jlong address, jshort value) {
     auto val = (short)value;
-    ArmMemMemory::writeMemory((uintptr_t)address, &val, sizeof(short));
+    return ArmMemMemory::writeMemory((uintptr_t)address, &val, sizeof(short)) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jint JNICALL

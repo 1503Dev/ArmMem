@@ -38,18 +38,18 @@ public class JNI {
     public native static long[] searchQword(long value, int memoryRange);
     public native static long[] searchQword(long value, long[] prevList);
 
-    public native static void writeDword(int pid, long address, int value);
-    public native static void writeDword(long address, int value);
-    public native static void writeFloat(int pid, long address, float value);
-    public native static void writeFloat(long address, float value);
-    public native static void writeDouble(int pid, long address, double value);
-    public native static void writeDouble(long address, double value);
-    public native static void writeQword(int pid, long address, long value);
-    public native static void writeQword(long address, long value);
-    public native static void writeByte(int pid, long address, byte value);
-    public native static void writeByte(long address, byte value);
-    public native static void writeWord(int pid, long address, short value);
-    public native static void writeWord(long address, short value);
+    public native static boolean writeDword(int pid, long address, int value);
+    public native static boolean writeDword(long address, int value);
+    public native static boolean writeFloat(int pid, long address, float value);
+    public native static boolean writeFloat(long address, float value);
+    public native static boolean writeDouble(int pid, long address, double value);
+    public native static boolean writeDouble(long address, double value);
+    public native static boolean writeQword(int pid, long address, long value);
+    public native static boolean writeQword(long address, long value);
+    public native static boolean writeByte(int pid, long address, byte value);
+    public native static boolean writeByte(long address, byte value);
+    public native static boolean writeWord(int pid, long address, short value);
+    public native static boolean writeWord(long address, short value);
 
     public native static int openMemFile(int pid);
     public native static void closeMemFile(int fd);

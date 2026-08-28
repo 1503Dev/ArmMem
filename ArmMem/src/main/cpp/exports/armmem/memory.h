@@ -5,9 +5,11 @@
 #ifndef ARMMEM_MEMORY_H
 #define ARMMEM_MEMORY_H
 
-#include <iostream>
 #include <vector>
 #include <string>
+#include <unordered_map>
+#include <memory>
+#include <mutex>
 #include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -169,9 +171,10 @@ public:
     static MemoryMonitorHandle* listenForReadOnce(uintptr_t address, void *callback = nullptr, void *userData = nullptr);
     static bool unlisten(MemoryMonitorHandle* handle);
 private:
-    constexpr static char* const TAG = "Memory";
+    constexpr static const char* const TAG = "Memory";
 
     static void syncMonitorSignalHandler(int sig, siginfo_t* si, void* context);
+    static void _processMonitorEvents();
     static MemoryMonitorHandle* _listenForWrite(MemoryMonitorHandle* handle);
     static void _updatePageProtection(uintptr_t address);
     static MemoryMonitorHandle* listen(int pid, uintptr_t address, int type, void *callback, void *userData);

@@ -103,4 +103,8 @@ class MainActivity : AppCompatActivity() {
     fun unlisRd(v: View) {
         JNI().unlisRd()
     }
+    fun runTests(v: View) {
+        val result = ArmMemTestRunner().runAll()
+        tv.text = result
+    }
 }

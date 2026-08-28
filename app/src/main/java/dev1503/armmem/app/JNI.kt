@@ -11,6 +11,14 @@ class JNI {
     external fun handleTest()
     external fun lisRd(addr: Long)
     external fun unlisRd()
+
+    external fun testHook(): Boolean
+    external fun testCallStringFromJNI(): String
+    external fun testUnhook(): Boolean
+    external fun testGetFunctionAddress(moduleName: String, symbolName: String): Long
+    external fun testHookNullTarget(): Boolean
+    external fun testHookNullFunc(): Boolean
+
     companion object {
         init {
             System.loadLibrary("app")

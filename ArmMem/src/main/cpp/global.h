@@ -7,13 +7,14 @@
 
 #include <jni.h>
 #include <android/log.h>
+#include <atomic>
 
 extern jclass g_jclass_HookOnInvokeListener;
 extern jmethodID g_jmethodID_HookOnInvokeListener_onInvoke;
-extern bool g_isInitialized;
+extern std::atomic<bool> g_isInitialized;
 
 static bool throwNotInitializedException(JNIEnv *env){
-    if (g_isInitialized){
+    if (g_isInitialized.load(std::memory_order_acquire)){
         return false;
     }
     __android_log_print(ANDROID_LOG_ERROR, "ArmMem", "ArmMem is not initialized");
