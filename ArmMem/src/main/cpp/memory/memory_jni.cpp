@@ -346,6 +346,63 @@ Java_dev1503_armmem_memory_JNI_writeWord__JS(JNIEnv *env, jclass clazz, jlong ad
     return ArmMemMemory::writeMemory((uintptr_t)address, &val, sizeof(short)) ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT jlongArray JNICALL
+Java_dev1503_armmem_memory_JNI_searchSignature__ILjava_lang_String_2I(JNIEnv *env, jclass clazz, jint pid, jstring pattern, jint memoryRange) {
+    const char* patternStr = env->GetStringUTFChars(pattern, nullptr);
+    if (patternStr == nullptr) return nullptr;
+
+    std::vector<uintptr_t> results = ArmMemMemory::searchSignature(pid, patternStr, ArmMemMemory::toMemoryRange(memoryRange));
+    env->ReleaseStringUTFChars(pattern, patternStr);
+
+    jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
+    jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
+    for (size_t i = 0; i < results.size(); i++) {
+        elements[i] = (jlong)results[i];
+    }
+    env->ReleaseLongArrayElements(resultArray, elements, 0);
+    return resultArray;
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_dev1503_armmem_memory_JNI_searchSignature__ILjava_lang_String_2_3J(JNIEnv *env, jclass clazz, jint pid, jstring pattern, jlongArray prevList) {
+    const char* patternStr = env->GetStringUTFChars(pattern, nullptr);
+    if (patternStr == nullptr) return nullptr;
+
+    jsize len = env->GetArrayLength(prevList);
+    jlong* prevListElements = env->GetLongArrayElements(prevList, nullptr);
+    if (prevListElements == nullptr) {
+        env->ReleaseStringUTFChars(pattern, patternStr);
+        return nullptr;
+    }
+    std::vector<uintptr_t> prevListVector(prevListElements, prevListElements + len);
+    env->ReleaseLongArrayElements(prevList, prevListElements, JNI_ABORT);
+
+    std::vector<uintptr_t> results = ArmMemMemory::searchSignature(pid, patternStr, prevListVector);
+    env->ReleaseStringUTFChars(pattern, patternStr);
+
+    jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
+    jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
+    for (size_t i = 0; i < results.size(); i++) {
+        elements[i] = (jlong)results[i];
+    }
+    env->ReleaseLongArrayElements(resultArray, elements, 0);
+    return resultArray;
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_dev1503_armmem_memory_JNI_searchSignature__Ljava_lang_String_2I(JNIEnv *env, jclass clazz, jstring pattern, jint memoryRange) {
+    return Java_dev1503_armmem_memory_JNI_searchSignature__ILjava_lang_String_2I(env, clazz, getpid(), pattern, memoryRange);
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_dev1503_armmem_memory_JNI_searchSignature__Ljava_lang_String_2_3J(JNIEnv *env, jclass clazz, jstring pattern, jlongArray prevList) {
+    return Java_dev1503_armmem_memory_JNI_searchSignature__ILjava_lang_String_2_3J(env, clazz, getpid(), pattern, prevList);
+}
+
 JNIEXPORT jint JNICALL
 Java_dev1503_armmem_memory_JNI_openMemFile(JNIEnv *env, jclass clazz, jint pid) {
     return ArmMemMemory::openMemFile(pid);
@@ -353,6 +410,53 @@ Java_dev1503_armmem_memory_JNI_openMemFile(JNIEnv *env, jclass clazz, jint pid) 
 JNIEXPORT void JNICALL
 Java_dev1503_armmem_memory_JNI_closeMemFile(JNIEnv *env, jclass clazz, jint fd) {
     close(fd);
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_dev1503_armmem_memory_JNI_search__ILjava_lang_String_2I(JNIEnv *env, jclass clazz, jint pid, jstring expression, jint memoryRange) {
+    if (expression == nullptr) return nullptr;
+    const char* expr = env->GetStringUTFChars(expression, nullptr);
+    if (expr == nullptr) return nullptr;
+    std::vector<uintptr_t> results = ArmMemMemory::search(pid, expr, ArmMemMemory::toMemoryRange(memoryRange));
+    env->ReleaseStringUTFChars(expression, expr);
+    jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
+    jlong* elements = env->GetLongArrayElements(resultArray, nullptr);
+    if (elements == nullptr) return resultArray;
+    for (size_t i = 0; i < results.size(); i++) elements[i] = (jlong)results[i];
+    env->ReleaseLongArrayElements(resultArray, elements, 0);
+    return resultArray;
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_dev1503_armmem_memory_JNI_search__Ljava_lang_String_2I(JNIEnv *env, jclass clazz, jstring expression, jint memoryRange) {
+    return Java_dev1503_armmem_memory_JNI_search__ILjava_lang_String_2I(env, clazz, getpid(), expression, memoryRange);
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_dev1503_armmem_memory_JNI_search__ILjava_lang_String_2_3J(JNIEnv *env, jclass clazz, jint pid, jstring expression, jlongArray prevList) {
+    if (expression == nullptr || prevList == nullptr) return nullptr;
+    const char* expr = env->GetStringUTFChars(expression, nullptr);
+    if (expr == nullptr) return nullptr;
+    jsize len = env->GetArrayLength(prevList);
+    jlong* elems = env->GetLongArrayElements(prevList, nullptr);
+    if (elems == nullptr) { env->ReleaseStringUTFChars(expression, expr); return nullptr; }
+    std::vector<uintptr_t> prev(elems, elems + len);
+    env->ReleaseLongArrayElements(prevList, elems, JNI_ABORT);
+    std::vector<uintptr_t> results = ArmMemMemory::search(pid, expr, prev);
+    env->ReleaseStringUTFChars(expression, expr);
+    jlongArray resultArray = env->NewLongArray(results.size());
+    if (resultArray == nullptr) return nullptr;
+    jlong* resultElems = env->GetLongArrayElements(resultArray, nullptr);
+    if (resultElems == nullptr) return resultArray;
+    for (size_t i = 0; i < results.size(); i++) resultElems[i] = (jlong)results[i];
+    env->ReleaseLongArrayElements(resultArray, resultElems, 0);
+    return resultArray;
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_dev1503_armmem_memory_JNI_search__Ljava_lang_String_2_3J(JNIEnv *env, jclass clazz, jstring expression, jlongArray prevList) {
+    return Java_dev1503_armmem_memory_JNI_search__ILjava_lang_String_2_3J(env, clazz, getpid(), expression, prevList);
 }
 
 JNIEXPORT jint JNICALL

@@ -18,6 +18,9 @@ class JNI {
     external fun testGetFunctionAddress(moduleName: String, symbolName: String): Long
     external fun testHookNullTarget(): Boolean
     external fun testHookNullFunc(): Boolean
+    external fun getModi2Address(): Long
+    external fun getDwordFloatAddress(): Long
+    external fun getMixedGroupAddress(): Long
 
     companion object {
         init {

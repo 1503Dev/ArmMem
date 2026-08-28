@@ -20,6 +20,8 @@
 #include <signal.h>
 #include <ucontext.h>
 
+struct PendingMonitorEvent;
+
 class ArmMemMemory {
 public:
     static MemoryRange toMemoryRange(int id);
@@ -137,6 +139,39 @@ public:
 
     static bool writeQword(uintptr_t address, long long value);
 
+    static std::vector<uintptr_t> searchSignature(int pid, const char* pattern, MemoryRange memoryRange);
+    static std::vector<uintptr_t> searchSignature(const char* pattern, MemoryRange memoryRange);
+    static std::vector<uintptr_t> searchSignature(int pid, const char* pattern, const std::vector<uintptr_t>& prevList);
+    static std::vector<uintptr_t> searchSignature(const char* pattern, const std::vector<uintptr_t>& prevList);
+
+    static std::vector<uintptr_t> search(int pid, const char* expression, MemoryRange memoryRange);
+    static std::vector<uintptr_t> search(const char* expression, MemoryRange memoryRange);
+    static std::vector<uintptr_t> searchDword(int pid, const char* expression, MemoryRange memoryRange);
+    static std::vector<uintptr_t> searchDword(const char* expression, MemoryRange memoryRange);
+    static std::vector<uintptr_t> searchFloat(int pid, const char* expression, MemoryRange memoryRange);
+    static std::vector<uintptr_t> searchFloat(const char* expression, MemoryRange memoryRange);
+    static std::vector<uintptr_t> searchWord(int pid, const char* expression, MemoryRange memoryRange);
+    static std::vector<uintptr_t> searchWord(const char* expression, MemoryRange memoryRange);
+    static std::vector<uintptr_t> searchByte(int pid, const char* expression, MemoryRange memoryRange);
+    static std::vector<uintptr_t> searchByte(const char* expression, MemoryRange memoryRange);
+    static std::vector<uintptr_t> searchDouble(int pid, const char* expression, MemoryRange memoryRange);
+    static std::vector<uintptr_t> searchDouble(const char* expression, MemoryRange memoryRange);
+
+    static std::vector<uintptr_t> search(int pid, const char* expression, const std::vector<uintptr_t>& prevList);
+    static std::vector<uintptr_t> search(const char* expression, const std::vector<uintptr_t>& prevList);
+    static std::vector<uintptr_t> searchDword(int pid, const char* expression, const std::vector<uintptr_t>& prevList);
+    static std::vector<uintptr_t> searchDword(const char* expression, const std::vector<uintptr_t>& prevList);
+    static std::vector<uintptr_t> searchFloat(int pid, const char* expression, const std::vector<uintptr_t>& prevList);
+    static std::vector<uintptr_t> searchFloat(const char* expression, const std::vector<uintptr_t>& prevList);
+    static std::vector<uintptr_t> searchWord(int pid, const char* expression, const std::vector<uintptr_t>& prevList);
+    static std::vector<uintptr_t> searchWord(const char* expression, const std::vector<uintptr_t>& prevList);
+    static std::vector<uintptr_t> searchByte(int pid, const char* expression, const std::vector<uintptr_t>& prevList);
+    static std::vector<uintptr_t> searchByte(const char* expression, const std::vector<uintptr_t>& prevList);
+    static std::vector<uintptr_t> searchDouble(int pid, const char* expression, const std::vector<uintptr_t>& prevList);
+    static std::vector<uintptr_t> searchDouble(const char* expression, const std::vector<uintptr_t>& prevList);
+
+    static const char* getLastSearchError();
+
     static int readDword(int pid, uintptr_t address, bool *success = nullptr);
 
     static float readFloat(int pid, uintptr_t address, bool *success = nullptr);
@@ -175,12 +210,16 @@ private:
 
     static void syncMonitorSignalHandler(int sig, siginfo_t* si, void* context);
     static void _processMonitorEvents();
-    static MemoryMonitorHandle* _listenForWrite(MemoryMonitorHandle* handle);
+    static void _processMonitorEvent(const PendingMonitorEvent& event);
+    static void _relockAllPages();
+    static bool _listenForWrite(MemoryMonitorHandle* handle);
     static void _updatePageProtection(uintptr_t address);
+    static void _unrecordMonitor(uintptr_t address);
     static MemoryMonitorHandle* listen(int pid, uintptr_t address, int type, void *callback, void *userData);
 
     static std::unordered_map<int, std::shared_ptr<MemoryMonitorHandle*>> m_monitorHandles;
     static std::mutex m_monitorMutex;
+    static std::string s_lastSearchError;
 };
 
 #endif

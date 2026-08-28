@@ -301,4 +301,36 @@ public class Memory {
     public static short readWord(long address) {
         return JNI.readWord(address);
     }
+
+    public static long[] searchSignature(int pid, String pattern, int memoryRange) {
+        return JNI.searchSignature(pid, pattern, memoryRange);
+    }
+
+    public static long[] searchSignature(String pattern, int memoryRange) {
+        return JNI.searchSignature(pattern, memoryRange);
+    }
+
+    public static long[] searchSignature(int pid, String pattern, long[] prevList) {
+        return JNI.searchSignature(pid, pattern, prevList);
+    }
+
+    public static long[] searchSignature(String pattern, long[] prevList) {
+        return JNI.searchSignature(pattern, prevList);
+    }
+
+    public static long[] search(int pid, String expression, int memoryRange) {
+        return JNI.search(pid, expression, memoryRange);
+    }
+
+    public static long[] search(String expression, int memoryRange) {
+        return JNI.search(expression, memoryRange);
+    }
+
+    public static long[] search(int pid, String expression, long[] prevList) {
+        return JNI.search(pid, expression, prevList);
+    }
+
+    public static long[] search(String expression, long[] prevList) {
+        return JNI.search(expression, prevList);
+    }
 }

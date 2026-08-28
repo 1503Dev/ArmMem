@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cstring>
+#include <mutex>
 #include <android/log.h>
 
 
@@ -19,6 +20,9 @@
 static uint32_t gInsnsPoolA32[ARMMEM_HF32_MAX_BACKUPS][ARMMEM_HF32_TRAMPOLINE_SIZE] __attribute__((__aligned__(4096)));
 static uintptr_t gPageSize = 0;
 
+static std::mutex gTrampolineMutex32;
+static bool gTrampolineUsed32[ARMMEM_HF32_MAX_BACKUPS] = {false};
+
 static void initPageSize() {
     if (gPageSize == 0) gPageSize = sysconf(_SC_PAGESIZE);
 }
@@ -29,7 +33,7 @@ static inline uintptr_t getRealAddress(uintptr_t addr) { return addr & ~1; }
 static int getInstructionSize(uintptr_t addr, bool isThumb) {
     if (isThumb) {
         uint16_t ins = *reinterpret_cast<uint16_t*>(addr);
-        if ((ins & 0xF800) == 0xF000 || (ins & 0xFF00) == 0xE800) return 4;
+        if ((ins & 0xF800) >= 0xE800) return 4;
         return 2;
     }
     return 4;
@@ -57,12 +61,24 @@ void ArmMemHookFunction32::init() {
 }
 
 uint32_t* ArmMemHookFunction32::allocateTrampoline() {
-    static volatile int32_t index = -1;
-    int32_t i = __sync_add_and_fetch(&index, 1);
-    if (i >= 0 && i < ARMMEM_HF32_MAX_BACKUPS) {
-        return gInsnsPoolA32[i];
+    std::lock_guard<std::mutex> lock(gTrampolineMutex32);
+    for (int i = 0; i < ARMMEM_HF32_MAX_BACKUPS; i++) {
+        if (!gTrampolineUsed32[i]) {
+            gTrampolineUsed32[i] = true;
+            return gInsnsPoolA32[i];
+        }
     }
     return nullptr;
+}
+
+static void releaseTrampoline32(uint32_t* trampoline) {
+    if (!trampoline) return;
+    uintptr_t base = reinterpret_cast<uintptr_t>(gInsnsPoolA32);
+    uintptr_t ptr = reinterpret_cast<uintptr_t>(trampoline);
+    if (ptr < base || ptr >= base + sizeof(gInsnsPoolA32)) return;
+    size_t idx = (ptr - base) / (ARMMEM_HF32_TRAMPOLINE_SIZE * sizeof(uint32_t));
+    std::lock_guard<std::mutex> lock(gTrampolineMutex32);
+    if (idx < ARMMEM_HF32_MAX_BACKUPS) gTrampolineUsed32[idx] = false;
 }
 
 void ArmMemHookFunction32::fixInstructions(uintptr_t realTarget, int totalBytes, uint32_t* trampoline, bool isThumb) {
@@ -109,13 +125,14 @@ void* ArmMemHookFunction32::hookV(void* const symbol, void* const replace, void*
     bool isThumb = isThumbMode(targetAddr);
     uintptr_t realTarget = getRealAddress(targetAddr);
 
-    int minBytes = isThumb ? 8 : 8;
+    int minBytes = isThumb ? 10 : 8;
     int totalBytes = 0;
     while (totalBytes < minBytes) {
         totalBytes += getInstructionSize(realTarget + totalBytes, isThumb);
     }
 
     if (rwx) {
+        if (rwxSize < (uintptr_t)totalBytes + 16u) return nullptr;
         fixInstructions(realTarget, totalBytes, static_cast<uint32_t*>(rwx), isThumb);
     }
 
@@ -125,9 +142,17 @@ void* ArmMemHookFunction32::hookV(void* const symbol, void* const replace, void*
 
     if (isThumb) {
         auto* code = reinterpret_cast<uint16_t*>(realTarget);
-        code[0] = 0xF8DF; code[1] = 0xF000; // LDR.W PC, [PC]
-        *reinterpret_cast<uint32_t*>(&code[2]) = (hookAddr | 1);
-        for(int i = 4; i < totalBytes / 2; i++) code[i] = 0xBF00;
+        if ((realTarget & 3u) == 2u) {
+            code[0] = 0xBF00;          // NOP
+            code[1] = 0xF8DF;          // LDR.W PC, [PC, #0]
+            code[2] = 0xF000;
+            *reinterpret_cast<uint32_t*>(&code[3]) = (hookAddr | 1);
+            for (int i = 6; i < totalBytes / 2; i++) code[i] = 0xBF00;
+        } else {
+            code[0] = 0xF8DF; code[1] = 0xF000; // LDR.W PC, [PC]
+            *reinterpret_cast<uint32_t*>(&code[2]) = (hookAddr | 1);
+            for (int i = 4; i < totalBytes / 2; i++) code[i] = 0xBF00;
+        }
     } else {
         auto* code = reinterpret_cast<uint32_t*>(realTarget);
         code[0] = 0xE51FF004; // LDR PC, [PC, #-4]
@@ -146,6 +171,8 @@ void* ArmMemHookFunction32::hookV(void* const symbol, void* const replace, void*
     return (void*)1;
 }
 
+static std::mutex gHookMutex32;
+
 HookFunctionHandle* ArmMemHookFunction32::hook(void* target, void* hookFunc, void** originalPtr) {
     auto* handle = new HookFunctionHandle();
     handle->isSuccess = false;
@@ -153,6 +180,15 @@ HookFunctionHandle* ArmMemHookFunction32::hook(void* target, void* hookFunc, voi
     if (!target || !hookFunc) {
         handle->message = strdup(ArmMem_HookFunction_MSG_INVALID_TARGET);
         return handle;
+    }
+
+    std::lock_guard<std::mutex> lock(gHookMutex32);
+
+    for (auto& i : g_hook_pool) {
+        if (i.isActive && i.target == reinterpret_cast<uintptr_t>(target)) {
+            handle->message = strdup(ArmMem_HookFunction_MSG_TARGET_ALREADY_HOOKED);
+            return handle;
+        }
     }
 
     HookFunctionHandle* poolHandle = nullptr;
@@ -167,10 +203,17 @@ HookFunctionHandle* ArmMemHookFunction32::hook(void* target, void* hookFunc, voi
     delete handle;
     handle = poolHandle;
 
+    if (handle->message) {
+        free(handle->message);
+        handle->message = nullptr;
+    }
+    handle->isActive = false;
+    handle->isSuccess = false;
+
     bool isThumb = isThumbMode(reinterpret_cast<uintptr_t>(target));
     uintptr_t realTarget = getRealAddress(reinterpret_cast<uintptr_t>(target));
 
-    int minBytes = isThumb ? 8 : 8;
+    int minBytes = isThumb ? 10 : 8;
     int totalBytes = 0;
     while (totalBytes < minBytes) {
         totalBytes += getInstructionSize(realTarget + totalBytes, isThumb);
@@ -193,7 +236,7 @@ HookFunctionHandle* ArmMemHookFunction32::hook(void* target, void* hookFunc, voi
     }
 
     void* result = hookV(target, hookFunc, trampoline, ARMMEM_HF32_TRAMPOLINE_SIZE);
-    if (result != nullptr || originalPtr == nullptr) {
+    if (result != nullptr) {
         handle->isActive = true;
         handle->isSuccess = true;
         handle->message = strdup(ArmMem_HookFunction_MSG_HOOK_SUCCESS);
@@ -202,11 +245,17 @@ HookFunctionHandle* ArmMemHookFunction32::hook(void* target, void* hookFunc, voi
 
     handle->isActive = false;
     handle->message = strdup(ArmMem_HookFunction_MSG_HOOK_FAILED);
+    if (trampoline) {
+        releaseTrampoline32(static_cast<uint32_t*>(trampoline));
+        handle->trampoline = 0;
+        if (originalPtr) *originalPtr = nullptr;
+    }
     return handle;
 }
 
 bool ArmMemHookFunction32::unhook(HookFunctionHandle* handle) {
     if (!handle || !handle->isActive || !handle->target) return false;
+    std::lock_guard<std::mutex> lock(gHookMutex32);
     uintptr_t realTarget = getRealAddress(handle->target);
     size_t patchSize = handle->backupSize;
     if (makeMemoryRwx(reinterpret_cast<void*>(realTarget), patchSize)) {
@@ -214,6 +263,9 @@ bool ArmMemHookFunction32::unhook(HookFunctionHandle* handle) {
         _flush_cache(realTarget, patchSize);
         makeMemoryRx(reinterpret_cast<void*>(realTarget), patchSize);
         handle->isActive = false;
+        handle->isSuccess = false;
+        releaseTrampoline32(static_cast<uint32_t*>(reinterpret_cast<void*>(handle->trampoline)));
+        handle->trampoline = 0;
         return true;
     }
     return false;

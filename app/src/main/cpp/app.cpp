@@ -11,6 +11,24 @@ static jstring (*original_stringFromJNI)(JNIEnv *, jobject) = nullptr;
 HookFunctionHandle* h = nullptr;
 
 int iv = 1145141919;
+
+struct DwordFloatGroup {
+    int i1; float f1; int i2; float f2; int i3; float f3; int i4; float f4; int i5; float f5;
+};
+
+struct MixedGroup {
+    int intVal; float floatVal; double doubleVal; short wordVal; int intVal2;
+    float floatVal2; double doubleVal2; int intVal3; float floatVal3; int8_t byteVal;
+};
+
+static DwordFloatGroup g_dwordFloatGroup = {
+    111, 2.5f, 222, 3.5f, 333, 4.5f, 444, 5.5f, 555, 6.5f
+};
+
+static MixedGroup g_mixedGroup = {
+    100, 1.5f, 2.5, (short)300, 400,
+    5.5f, 6.5, 700, 8.5f, (int8_t)9
+};
 //int iv2 = 1145141919;
 //int iv3 = 1145141919;
 int iv5 = 12346;
@@ -205,4 +223,22 @@ Java_dev1503_armmem_app_JNI_testHookNullFunc(JNIEnv *env, jobject thiz) {
     int result = h->isSuccess ? 1 : 0;
     delete h;
     return result;
+}
+
+extern "C"
+JNIEXPORT jlong JNICALL
+Java_dev1503_armmem_app_JNI_getModi2Address(JNIEnv *env, jobject thiz) {
+    return (jlong)Java_dev1503_armmem_app_JNI_modi2;
+}
+
+extern "C"
+JNIEXPORT jlong JNICALL
+Java_dev1503_armmem_app_JNI_getDwordFloatAddress(JNIEnv *env, jobject thiz) {
+    return (jlong)&g_dwordFloatGroup;
+}
+
+extern "C"
+JNIEXPORT jlong JNICALL
+Java_dev1503_armmem_app_JNI_getMixedGroupAddress(JNIEnv *env, jobject thiz) {
+    return (jlong)&g_mixedGroup;
 }

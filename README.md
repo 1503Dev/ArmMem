@@ -8,9 +8,9 @@ Inline Hook and Memory I/O Library for Android
 - [ ] ~~Hook 支持 x86~~
 - [ ] ~~Hook 支持 x86_64~~
 - [x] 解除 Hook
-- [ ] ~~GOT/PLT Hook 支持~~
+- [ ] GOT/PLT Hook 支持
 - [x] Java 层内存读写封装
-- [ ] ~~Java 层 Hook 封装~~
+- [ ] Java 层 Hook 封装
 - [x] [aarch64 内存读写监控](#内存监控)
 - [x] [arm 内存读写监控](#内存监控)
 - [ ] Java 层内存监控封装
@@ -18,8 +18,8 @@ Inline Hook and Memory I/O Library for Android
 - [x] [内存读写](#内存搜索与读写)
 - [x] [内存搜索](#内存搜索与读写)
 - [x] 内存二次搜索
-- [ ] 可执行段特征码搜索
-- [ ] 联合搜索
+- [x] [可执行段特征码搜索(实验)](#可执行段特征码搜索)
+- [x] [联合搜索](#联合搜索)
 - [ ] 模糊搜索
 - [x] Prefab 支持
 
@@ -28,19 +28,35 @@ Inline Hook and Memory I/O Library for Android
 
 ## 使用
 ### 获取 aar
-自己编译或者从 [Release](https://github.com/1503Dev/ArmMem/releases) 中下载 aar 文件
+从 [Release](https://github.com/1503Dev/ArmMem/releases) 中下载 aar 文件  
+或者通过 Maven 引入:
+build.gradle.kts:
+```kotlin
+repositories {
+  maven {
+    url = uri("https://maven.1503dev.top/")
+  }
+}
+```
 
 ### 导入库
 在应用模块的 build.gradle 中启用 Prefab 支持，并引入 aar
 ```groovy build.gradle
 android {
-    buildFeatures {
-        prefab true
-    }
+  buildFeatures {
+    prefab true
+  }
 }
 dependencies {
-    implementation file('ArmMem.aar')
+  implementation "dev1503.armmem:armmem:1.1.0"
+  // 如果是本地aar: implementation file('ArmMem.aar')
 }
+```
+
+C++:
+```cpp
+#include "armmem/memory.h"
+#include "armmem/hook.h"
 ```
 
 ## Hook 函数
@@ -234,6 +250,31 @@ MemoryRange::ASHMEM
 MemoryRange::OTHER 
 ```
 
+### 可执行段特征码搜索
+实验特性，不可直接使用 IDA Pro 生成的特征码
+
+### 联合搜索
+一次性搜索由多个值组成的结构体，返回结构体起始地址。  
+表达式语法：
+
+- 组之间用 `||` 分隔：`"111;222||333;444"` —— 后面的组出现在前一组结束位置**之后**的任意位置
+- 组内值用 `;` 连续排列：`"111;222"` —— 111 在 base，222 在 base+4
+- 组内值之间用 `:N:` 表示间隔：`"555:12:666"` —— 555 在 base，666 在 base+16
+- 组尾 `:N` 限定组最大宽度：`"555;666:20"` —— 组总宽度不得超过 20 字节
+- 值类型前缀：`d::` `f::` `w::` `b::` `e::`（默认自动识别）
+- 浮点/双精度支持半径：`"f::2.5~0.1"`
+- 整数支持十六进制：`"0x6F"`
+
+```java
+// 搜索 struct { int i; float f; int j; }，i=111, f=2.5, j=222
+long[] found = Memory.search("111;f::2.5;222", Memory.RANGE_C_BSS);
+
+// 在结果中再次搜索
+long[] refined = Memory.search("111;f::2.5;222", found);
+```
+
+表达式非法时返回空数组，错误原因会输出到 logcat（`ArmMemMemory::getLastSearchError()` 可获取最近一次错误信息）。
+
 ## 内存监控
 ```cpp
 uintptr_t address = 0x7F123458;
@@ -243,15 +284,16 @@ void* callback(MemoryMonitorHandle* handle, MemoryMonitorHit* hit) {
 }
 int userData = 123456;
 MemoryMonitorHandle* handleRead = ArmMemMemory::listenForReadOnce(address, (void*)callback, (void*)(uintptr_t)userData);
-// 监控一次读取操作(不建议使用listenForRead对频繁读取的内存进行持久化监控，否则会消耗大量性能，且内存、线程都不安全)
+// 监控一次读取操作(通知型: 不拦截指令, 访问正常执行; 不建议对频繁读取的内存持久监控, 会消耗大量性能)
 MemoryMonitorHandle* handleWrite = ArmMemMemory::listenForWriteOnce(address, (void*)callback, (void*)(uintptr_t)userData);
-// 监控一次写入操作(不建议使用listenForWrite对频繁写入操作的内存进行持久化监控，否则会消耗大量性能，且内存、线程都不安全)
-// 写入操作可以返回一个值来修改写入的值，也可以返回nullptr来保持修改前的值
+// 监控一次写入操作(拦截型: 写指令被跳过, 可返回一个值来修改写入的值, 返回nullptr则保持原值)
+// 注意: 写监控按页生效, 同页其他地址的写入不会丢失(放行重执行)但也会触发一次页级事件
 
 ArmMemMemory::unlisten(handleRead); // 取消监控读取操作
 ArmMemMemory::unlisten(handleWrite); // 取消监控写入操作
 
 // 注意: 每个地址只能监控一次，不能重复监控同一个地址
+// 监控仅支持本进程 (pid 参数必须等于当前进程); 跨进程监控会直接拒绝
 ```
 
 详细API: [memory.h](https://github.com/1503Dev/ArmMem/blob/main/ArmMem/src/main/cpp/exports/armmem/memory.h)

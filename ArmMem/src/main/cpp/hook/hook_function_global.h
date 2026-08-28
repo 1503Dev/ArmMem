@@ -12,5 +12,6 @@
 #define ArmMem_HookFunction_MSG_INVALID_MODULE_OR_SYMBOL_NAME "Invalid module or symbol name"
 #define ArmMem_HookFunction_MSG_HOOK_FAILED "Failed to hook function"
 #define ArmMem_HookFunction_MSG_HOOK_SUCCESS "Hook function success"
+#define ArmMem_HookFunction_MSG_TARGET_ALREADY_HOOKED "Target already hooked"
 
 #endif //ARMMEM_HOOK_FUNCTION_GLOBAL_H

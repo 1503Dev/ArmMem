@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
+#include <mutex>
 #include <sys/mman.h>
 #include "../exports/armmem/hook_function_64.h"
 #include "../exports/armmem/hook_function_handle.h"
@@ -185,7 +186,8 @@ static bool fix_loadlit(instruction inpp, instruction outpp, context *ctxp) {
     const uint32_t ins = *(*inpp);
     if ((ins & 0xff000000u) == 0xd8000000u) {
         ctxp->process_fix_map(ctxp->get_and_set_current_index(*inpp, *outpp));
-        ++(*inpp); return true;
+        *(*outpp)++ = *(*inpp)++;
+        return true;
     }
 
     static constexpr uint32_t msb        = 8u;
@@ -328,11 +330,28 @@ void ArmMemHookFunction64::fixInstructions(uint32_t *inp, int32_t count, uint32_
     _flush_cache(outp_base, (outp - outp_base) * sizeof(uint32_t));
 }
 
+static std::mutex g_trampolineMutex64;
+static bool g_trampolineUsed64[ArmMem_HF64_MAX_BACKUPS] = {false};
+
 uint32_t* ArmMemHookFunction64::allocateTrampoline() {
-    static volatile int32_t _index = -1;
-    int32_t i = _atomic_increase(&_index);
-    if (_predict_true(i >= 0 && i < _countof(insns_pool))) return insns_pool[i];
+    std::lock_guard<std::mutex> lock(g_trampolineMutex64);
+    for (int i = 0; i < ArmMem_HF64_MAX_BACKUPS; i++) {
+        if (!g_trampolineUsed64[i]) {
+            g_trampolineUsed64[i] = true;
+            return insns_pool[i];
+        }
+    }
     return nullptr;
+}
+
+static void releaseTrampoline64(uint32_t* trampoline) {
+    if (!trampoline) return;
+    uintptr_t base = reinterpret_cast<uintptr_t>(insns_pool);
+    uintptr_t ptr = reinterpret_cast<uintptr_t>(trampoline);
+    if (ptr < base || ptr >= base + sizeof(insns_pool)) return;
+    size_t idx = (ptr - base) / (ArmMem_HF64_MAX_INSTRUCTIONS * 10u * sizeof(uint32_t));
+    std::lock_guard<std::mutex> lock(g_trampolineMutex64);
+    if (idx < ArmMem_HF64_MAX_BACKUPS) g_trampolineUsed64[idx] = false;
 }
 
 void* ArmMemHookFunction64::hookV(void *const symbol, void *const replace, void *const rwx, const uintptr_t rwx_size) {
@@ -341,11 +360,12 @@ void* ArmMemHookFunction64::hookV(void *const symbol, void *const replace, void 
     auto *original = static_cast<uint32_t *>(symbol);
     auto pc_offset = static_cast<int64_t>(_intval(replace) - _intval(symbol)) >> 2;
 
+    bool patched = false;
     if (llabs(pc_offset) >= (mask >> 1)) {
         int32_t count = (reinterpret_cast<uint64_t>(original + 2) & 7u) != 0u ? 5 : 4;
 
         if (trampoline) {
-            if (rwx_size < count * 10u) return nullptr;
+            if (rwx_size < count * 10u * sizeof(uint32_t)) return nullptr;
             fixInstructions(original, count, trampoline);
         }
 
@@ -357,25 +377,28 @@ void* ArmMemHookFunction64::hookV(void *const symbol, void *const replace, void 
             *reinterpret_cast<void **>(p + 2) = replace;
             _flush_cache(symbol, 5 * sizeof(uint32_t));
             ::mprotect(_ptr_align(original), _page_align(_uintval(original) + (5 * sizeof(uint32_t))) - _uintval(_ptr_align(original)), PROT_READ | PROT_EXEC);
-        } else {
-            trampoline = nullptr;
+            patched = true;
         }
     } else {
         if (trampoline) {
-            if (rwx_size < 10u) return nullptr;
+            if (rwx_size < 64u) return nullptr;
             fixInstructions(original, 1, trampoline);
         }
 
         if (_make_rwx(original, 1 * sizeof(uint32_t)) == 0) {
-            _sync_cmpswap(original, *original, 0x14000000u | (pc_offset & mask));
-            _flush_cache(symbol, 1 * sizeof(uint32_t));
-            ::mprotect(_ptr_align(original), _page_align(_uintval(original) + (1 * sizeof(uint32_t))) - _uintval(_ptr_align(original)), PROT_READ | PROT_EXEC);
-        } else {
-            trampoline = nullptr;
+            if (_sync_cmpswap(original, *original, 0x14000000u | (pc_offset & mask))) {
+                _flush_cache(symbol, 1 * sizeof(uint32_t));
+                ::mprotect(_ptr_align(original), _page_align(_uintval(original) + (1 * sizeof(uint32_t))) - _uintval(_ptr_align(original)), PROT_READ | PROT_EXEC);
+                patched = true;
+            } else {
+                ::mprotect(_ptr_align(original), _page_align(_uintval(original) + (1 * sizeof(uint32_t))) - _uintval(_ptr_align(original)), PROT_READ | PROT_EXEC);
+            }
         }
     }
-    return trampoline;
+    return patched ? (trampoline ? trampoline : reinterpret_cast<void*>(1)) : nullptr;
 }
+
+static std::mutex g_hookMutex64;
 
 HookFunctionHandle* ArmMemHookFunction64::hook(void *target, void *hook_func, void **originalPtr) {
     auto* handle = new HookFunctionHandle();
@@ -391,6 +414,15 @@ HookFunctionHandle* ArmMemHookFunction64::hook(void *target, void *hook_func, vo
     auto* temp_handle = handle;
     handle = nullptr;
 
+    std::lock_guard<std::mutex> lock(g_hookMutex64);
+
+    for (auto& i : g_hook_pool) {
+        if (i.isActive && i.target == reinterpret_cast<uintptr_t>(target)) {
+            temp_handle->message = strdup(ArmMem_HookFunction_MSG_TARGET_ALREADY_HOOKED);
+            return temp_handle;
+        }
+    }
+
     for (auto & i : g_hook_pool) {
         if (!i.isActive) {
             handle = &i;
@@ -403,6 +435,13 @@ HookFunctionHandle* ArmMemHookFunction64::hook(void *target, void *hook_func, vo
         return temp_handle;
     }
     delete temp_handle;
+
+    if (handle->message) {
+        free(handle->message);
+        handle->message = nullptr;
+    }
+    handle->isActive = false;
+    handle->isSuccess = false;
 
     static constexpr uint_fast64_t mask = 0x03ffffffu;
     auto pc_offset = static_cast<int64_t>(_intval(hook_func) - _intval(target)) >> 2;
@@ -424,8 +463,8 @@ HookFunctionHandle* ArmMemHookFunction64::hook(void *target, void *hook_func, vo
             return handle;
         }
     }
-    void* result = hookV(target, hook_func, trampoline, ArmMem_HF64_MAX_INSTRUCTIONS * 10u);
-    if (result != nullptr || originalPtr == nullptr) {
+    void* result = hookV(target, hook_func, trampoline, ArmMem_HF64_MAX_INSTRUCTIONS * 10u * sizeof(uint32_t));
+    if (result != nullptr) {
         handle->isActive = true;
         handle->isSuccess = true;
         handle->message = strdup(ArmMem_HookFunction_MSG_HOOK_SUCCESS);
@@ -434,6 +473,11 @@ HookFunctionHandle* ArmMemHookFunction64::hook(void *target, void *hook_func, vo
 
     handle->isActive = false;
     handle->message = strdup(ArmMem_HookFunction_MSG_HOOK_FAILED);
+    if (trampoline) {
+        releaseTrampoline64(static_cast<uint32_t*>(trampoline));
+        handle->trampoline = 0;
+        if (originalPtr) *originalPtr = nullptr;
+    }
     return handle;
 }
 
@@ -445,12 +489,16 @@ bool ArmMemHookFunction64::unhook(HookFunctionHandle* handle) {
     if (!handle || !handle->isActive || !handle->target) {
         return false;
     }
+    std::lock_guard<std::mutex> lock(g_hookMutex64);
     size_t patch_size = handle->backupSize;
     if (_make_rwx(handle->target, patch_size) == 0) {
         memcpy(reinterpret_cast<void *const>(handle->target), handle->backupInsns, patch_size);
         _flush_cache(handle->target, patch_size);
         ::mprotect(_ptr_align(handle->target), _page_align(_uintval(handle->target) + patch_size) - _uintval(_ptr_align(handle->target)), PROT_READ | PROT_EXEC);
         handle->isActive = false;
+        handle->isSuccess = false;
+        releaseTrampoline64(reinterpret_cast<uint32_t*>(handle->trampoline));
+        handle->trampoline = 0;
         return true;
     }
     return false;

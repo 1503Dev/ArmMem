@@ -72,4 +72,14 @@ public class JNI {
     public native static short readWord(int pid, long address);
     public native static short readWord(long address, int fd);
     public native static short readWord(long address);
+
+    public native static long[] searchSignature(int pid, String pattern, int memoryRange);
+    public native static long[] searchSignature(int pid, String pattern, long[] prevList);
+    public native static long[] searchSignature(String pattern, int memoryRange);
+    public native static long[] searchSignature(String pattern, long[] prevList);
+
+    public native static long[] search(int pid, String expression, int memoryRange);
+    public native static long[] search(String expression, int memoryRange);
+    public native static long[] search(int pid, String expression, long[] prevList);
+    public native static long[] search(String expression, long[] prevList);
 }
